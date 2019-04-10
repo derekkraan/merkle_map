@@ -7,6 +7,7 @@ defmodule MerkleMap.MixProject do
       version: "0.1.0",
       elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
+      package: package(),
       deps: deps()
     ]
   end
@@ -18,11 +19,20 @@ defmodule MerkleMap.MixProject do
     ]
   end
 
+  defp package do
+    [
+      name: "merkle_map",
+      description: "A faster Map, augmented with a MerkleTree",
+      licenses: ["MIT"],
+      maintainers: ["Derek Kraan"],
+      links: %{GitHub: "https://github.com/derekkraan/merkle_map.ex"}
+    ]
+  end
+
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"},
+      {:murmur, "~> 1.0", optional: true}
     ]
   end
 end
