@@ -37,7 +37,6 @@ defmodule MerkleMap.MerkleTree do
   def diff(tree1, tree2, loc \\ <<>>)
 
   def diff(nil, nil, _loc), do: []
-  # def diff(tree, nil, _loc), do: diff(nil, tree)
   def diff(%{hash: hash}, %{hash: hash}, _loc), do: []
 
   def diff(nil, %{children: {_b1, _b2}} = tree, loc),
