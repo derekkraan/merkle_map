@@ -34,7 +34,8 @@ defmodule MerkleMap.MixProject do
     [
       {:murmur, "~> 1.0", optional: true},
       {:stream_data, "~> 0.4", only: :test},
-      {:benchee, "> 0.0.0", only: :dev}
+      {:benchee, "> 0.0.0", only: :dev},
+      {:ex_doc, "> 0.0.0", only: :dev}
     ]
   end
 end
