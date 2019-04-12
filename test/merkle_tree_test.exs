@@ -4,21 +4,21 @@ defmodule MerkleTreeTest do
 
   alias MerkleMap.MerkleTree
 
-  property "diff of itself is always empty" do
+  property "diff_keys of itself is always empty" do
     check all key <- term(),
               value <- term() do
       map = %{key => value}
       tree = MerkleTree.new(map)
-      assert [] = MerkleTree.diff(tree, tree)
+      assert [] = MerkleTree.diff_keys(tree, tree)
     end
   end
 
-  property "diff identifies missing key" do
+  property "diff_keys identifies missing key" do
     check all key <- term(),
               value <- term() do
       map = %{key => value}
       tree = MerkleTree.new(map)
-      assert [key] = MerkleTree.diff(MerkleTree.new(), tree)
+      assert [key] = MerkleTree.diff_keys(MerkleTree.new(), tree)
     end
   end
 
@@ -30,7 +30,7 @@ defmodule MerkleTreeTest do
     check all key <- term(),
               value <- term() do
       new_tree = MerkleTree.put(tree, key, value)
-      assert [key] = MerkleTree.diff(new_tree, tree)
+      assert [key] = MerkleTree.diff_keys(new_tree, tree)
     end
   end
 
@@ -43,10 +43,10 @@ defmodule MerkleTreeTest do
     assert MerkleTree.new(%{foo: "bar", bar: "baz"})
   end
 
-  test "diffs maps" do
+  test "diff_keyss maps" do
     m1 = MerkleTree.new(%{foo: "bar", food: "good"})
     m2 = MerkleTree.new(%{foo: "baz", food: "good", drink: "also good"})
-    assert Enum.sort([:foo, :drink]) == Enum.sort(MerkleTree.diff(m1, m2))
+    assert Enum.sort([:foo, :drink]) == Enum.sort(MerkleTree.diff_keys(m1, m2))
   end
 
   test "remove a key" do
@@ -55,8 +55,8 @@ defmodule MerkleTreeTest do
 
     removed = MerkleTree.delete(m1, :bar)
 
-    assert [] = MerkleTree.diff(m2, removed)
-    assert m2.hash == removed.hash
+    assert [] = MerkleTree.diff_keys(m2, removed)
+    assert MerkleTree.equal?(m2, removed)
   end
 
   test "equal?" do
@@ -67,36 +67,39 @@ defmodule MerkleTreeTest do
     refute MerkleTree.equal?(tree_one, tree_two)
   end
 
-  test "show diff" do
+  test "show diff_keys" do
     tree_one = MerkleTree.put(MerkleTree.new(), "foo", "bar")
-    assert [] = MerkleTree.diff(tree_one, tree_one)
+    assert [] = MerkleTree.diff_keys(tree_one, tree_one)
     tree_two = MerkleTree.put(MerkleTree.new(), "foo", "baz")
-    assert ["foo"] = MerkleTree.diff(tree_one, tree_two)
+    assert ["foo"] = MerkleTree.diff_keys(tree_one, tree_two)
     tree_three = MerkleTree.put(tree_one, "bar", "baz")
 
-    assert ["bar"] = MerkleTree.diff(tree_one, tree_three)
-    assert Enum.sort(["foo", "bar"]) == Enum.sort(MerkleTree.diff(tree_two, tree_three))
+    assert ["bar"] = MerkleTree.diff_keys(tree_one, tree_three)
+    assert Enum.sort(["foo", "bar"]) == Enum.sort(MerkleTree.diff_keys(tree_two, tree_three))
   end
 
-  test "can calculate partial diff from partial tree" do
+  test "can calculate partial diff_keys from partial tree" do
     tree_one = MerkleTree.new(%{foo: "bar"})
     tree_two = MerkleTree.new(%{foo: "baz"})
 
     assert partial = MerkleTree.partial_tree(tree_one, 8)
-    assert [partial: x] = MerkleTree.diff(partial, tree_two)
+    assert [partial: x] = MerkleTree.diff_keys(partial, tree_two)
 
     assert partial2 = MerkleTree.partial_tree(tree_one, 8, x)
-    assert [partial: y] = MerkleTree.diff(partial2, MerkleTree.partial_tree(tree_two, 8, x))
+    assert [partial: y] = MerkleTree.diff_keys(partial2, MerkleTree.partial_tree(tree_two, 8, x))
 
     assert partial3 = MerkleTree.partial_tree(tree_one, 8, <<x::bits, y::bits>>)
 
     assert [partial: z] =
-             MerkleTree.diff(partial3, MerkleTree.partial_tree(tree_two, 8, <<x::bits, y::bits>>))
+             MerkleTree.diff_keys(
+               partial3,
+               MerkleTree.partial_tree(tree_two, 8, <<x::bits, y::bits>>)
+             )
 
     assert partial4 = MerkleTree.partial_tree(tree_one, 8, <<x::bits, y::bits, z::bits>>)
 
     assert [partial: zz] =
-             MerkleTree.diff(
+             MerkleTree.diff_keys(
                partial4,
                MerkleTree.partial_tree(tree_two, 8, <<x::bits, y::bits, z::bits>>)
              )
@@ -105,7 +108,7 @@ defmodule MerkleTreeTest do
              MerkleTree.partial_tree(tree_one, 8, <<x::bits, y::bits, z::bits, zz::bits>>)
 
     assert [:foo] =
-             MerkleTree.diff(
+             MerkleTree.diff_keys(
                partial5,
                MerkleTree.partial_tree(tree_two, 8, <<x::bits, y::bits, z::bits, zz::bits>>)
              )

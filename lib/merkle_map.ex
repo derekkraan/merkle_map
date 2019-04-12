@@ -33,7 +33,7 @@ defmodule MerkleMap do
     Map.has_key?(m, k)
   end
 
-  def equal?(mm1, mm2), do: mm1.merkle_tree.hash == mm2.merkle_tree.hash
+  def equal?(mm1, mm2), do: MerkleTree.equal?(mm1.merkle_tree, mm2.merkle_tree)
 
   def put(%__MODULE__{} = mm, k, v) do
     %{mm | map: Map.put(mm.map, k, v), merkle_tree: MerkleTree.put(mm.merkle_tree, k, v)}
@@ -80,7 +80,7 @@ defmodule MerkleMap do
   end
 
   def merge(mm1, mm2) do
-    MerkleTree.diff(mm1.merkle_tree, mm2.merkle_tree)
+    MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)
     |> Enum.reduce(mm1, fn key, mm ->
       if Map.has_key?(mm2.map, key) do
         put(mm, key, get(mm2, key))
@@ -91,7 +91,7 @@ defmodule MerkleMap do
   end
 
   def merge(mm1, mm2, update_fun) do
-    MerkleTree.diff(mm1.merkle_tree, mm2.merkle_tree)
+    MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)
     |> Enum.reduce(mm1, fn key, mm ->
       cond do
         has_key?(mm, key) && has_key?(mm2, key) ->

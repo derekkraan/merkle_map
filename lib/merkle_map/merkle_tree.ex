@@ -1,6 +1,5 @@
 defmodule MerkleMap.MerkleTree do
-  defstruct children: {nil, nil},
-            hash: ""
+  defstruct object: {"", nil, nil}
 
   def new() do
     %__MODULE__{}
@@ -21,80 +20,105 @@ defmodule MerkleMap.MerkleTree do
     hash(key)
   end
 
-  def equal?(%{hash: hash}, %{hash: hash}), do: true
+  def equal?(%__MODULE__{object: {hash, _, _}}, %__MODULE__{object: {hash, _, _}}), do: true
   def equal?(_, _), do: false
 
   def all_leaves(nil, _loc), do: []
 
-  def all_leaves(%{children: {a, b}}, loc) do
+  def all_leaves({_, a, b}, loc) do
     all_leaves(a, <<loc::bitstring, 0::1>>) ++ all_leaves(b, <<loc::bitstring, 1::1>>)
   end
 
-  def all_leaves(%{children: %{} = values}, _loc), do: Map.keys(values)
+  def all_leaves({_, :partial}, loc), do: [{:partial, loc}]
 
-  def all_leaves(%{children: :partial}, loc), do: [{:partial, loc}]
+  def all_leaves({_, values}, _loc), do: Map.keys(values)
 
-  def diff(tree1, tree2, loc \\ <<>>)
+  def diff_keys(tree1, tree2, loc \\ <<>>)
 
-  def diff(nil, nil, _loc), do: []
-  def diff(%{hash: hash}, %{hash: hash}, _loc), do: []
+  def diff_keys(%__MODULE__{object: t1}, %__MODULE__{object: t2}, loc) do
+    diff_keys(t1, t2, loc)
+  end
 
-  def diff(nil, %{children: {_b1, _b2}} = tree, loc),
+  def diff_keys(nil, nil, _loc), do: []
+
+  def diff_keys({h, _, _}, {h, _, _}, _loc) do
+    []
+  end
+
+  def diff_keys(nil, {_, _, _} = tree, loc),
     do: all_leaves(tree, <<loc::bitstring, 0::1>>)
 
-  def diff(%{children: {_b1, _b2}} = tree, nil, loc),
+  def diff_keys({_, _, _} = tree, nil, loc),
     do: all_leaves(tree, <<loc::bitstring, 1::1>>)
 
-  def diff(nil, %{children: %{} = values}, _loc), do: Map.keys(values)
+  def diff_keys(nil, {_, values}, _loc), do: Map.keys(values)
 
-  def diff(%{children: {a1, a2}}, %{children: {b1, b2}}, loc) do
-    diff(a1, b1, <<loc::bitstring, 0::1>>) ++ diff(a2, b2, <<loc::bitstring, 1::1>>)
+  def diff_keys({_, a1, a2}, {_, b1, b2}, loc) do
+    diff_keys(a1, b1, <<loc::bitstring, 0::1>>) ++ diff_keys(a2, b2, <<loc::bitstring, 1::1>>)
   end
 
-  def diff(%{children: :partial}, _, loc) do
+  def diff_keys({_, :partial}, _, loc) do
     [{:partial, loc}]
   end
 
-  def diff(_, %{children: :partial}, loc) do
+  def diff_keys(_, {_, :partial}, loc) do
     [{:partial, loc}]
   end
 
-  def diff(%{children: v1 = %{}}, %{children: v2 = %{}}, _loc) do
+  def diff_keys({_, v1}, {_, v2}, _loc) do
     (Map.keys(v1) ++ Map.keys(v2)) |> Enum.uniq()
   end
 
-  def prune_empty_nodes(%{children: {nil, nil}}), do: nil
+  def prune_empty_nodes({_, nil, nil}), do: nil
   def prune_empty_nodes(tree), do: tree
 
-  def calculate_hash(%{children: {first, second}} = tree) do
-    first = init_empty_inner_node(first)
-    second = init_empty_inner_node(second)
-    %__MODULE__{tree | hash: hash(first.hash <> second.hash)}
+  def calculate_hash(%__MODULE__{object: {_, a, b}} = tree) do
+    h_a = get_hash(a)
+    h_b = get_hash(b)
+    %__MODULE__{object: {hash(h_a <> h_b), a, b}}
+  end
+
+  def calculate_hash({_, a, b} = tree) do
+    h_a = get_hash(a)
+    h_b = get_hash(b)
+    {hash(h_a <> h_b), a, b}
+  end
+
+  defp get_hash({h, _values}), do: h
+  defp get_hash({h, _a, _b}), do: h
+  defp get_hash(nil), do: ""
+
+  def partial_tree(tree, levels, loc \\ <<>>)
+
+  def partial_tree(%__MODULE__{object: tree}, levels, loc) do
+    %__MODULE__{object: partial_tree(tree, levels, loc)}
   end
 
   def partial_tree(nil, _levels, _), do: nil
 
-  def partial_tree(%{children: {a, _b}}, levels, <<0::1, rest_loc::bits>>),
+  def partial_tree({_, a, _b}, levels, <<0::1, rest_loc::bits>>),
     do: partial_tree(a, levels, rest_loc)
 
-  def partial_tree(%{children: {_a, b}}, levels, <<1::1, rest_loc::bits>>),
+  def partial_tree({_, _a, b}, levels, <<1::1, rest_loc::bits>>),
     do: partial_tree(b, levels, rest_loc)
 
-  def partial_tree(%{children: %{}} = tree, _levels, _loc) do
+  def partial_tree({_, _} = tree, _levels, _loc) do
     tree
   end
 
-  def partial_tree(tree, levels, <<>>), do: partial_tree(tree, levels)
+  def partial_tree(nil, _levels, <<>>), do: nil
 
-  def partial_tree(nil, _levels), do: nil
-
-  def partial_tree(tree, 0) do
-    %{tree | children: :partial}
+  def partial_tree({hash, _, _}, 0, <<>>) do
+    {hash, :partial}
   end
 
-  def partial_tree(tree, levels) do
-    %{children: {a, b}} = tree
-    %{tree | children: {partial_tree(a, levels - 1), partial_tree(b, levels - 1)}}
+  def partial_tree(tree, levels, <<>>) do
+    {hash, a, b} = tree
+    {hash, partial_tree(a, levels - 1), partial_tree(b, levels - 1)}
+  end
+
+  def delete(%__MODULE__{object: tree}, key) do
+    %__MODULE__{object: delete(tree, key)}
   end
 
   def delete(tree, key) do
@@ -105,26 +129,30 @@ defmodule MerkleMap.MerkleTree do
   end
 
   def delete(tree, <<0::size(1), rest_loc::bits>>, key) do
-    %{children: {first, second}} = init_empty_inner_node(tree)
+    {hash, first, second} = init_empty_inner_node(tree)
     new_first = delete(first, rest_loc, key)
-    %__MODULE__{children: {new_first, second}} |> calculate_hash() |> prune_empty_nodes()
+    {hash, new_first, second} |> calculate_hash() |> prune_empty_nodes()
   end
 
   def delete(tree, <<1::size(1), rest_loc::bits>>, key) do
-    %{children: {first, second}} = init_empty_inner_node(tree)
+    {hash, first, second} = init_empty_inner_node(tree)
     new_second = delete(second, rest_loc, key)
-    %__MODULE__{children: {first, new_second}} |> calculate_hash() |> prune_empty_nodes()
+    {hash, first, new_second} |> calculate_hash() |> prune_empty_nodes()
   end
 
   def delete(tree, <<>>, key) do
-    %{children: %{} = values} = init_empty_leaf(tree)
+    {_, values} = init_empty_leaf(tree)
     new_values = Map.delete(values, key)
 
     if Map.size(new_values) == 0 do
       nil
     else
-      %__MODULE__{children: new_values, hash: hash(new_values)}
+      {hash(new_values), new_values}
     end
+  end
+
+  def put(%__MODULE__{object: tree}, key, value) do
+    %__MODULE__{object: put(tree, key, value)}
   end
 
   def put(tree, key, value) do
@@ -132,26 +160,26 @@ defmodule MerkleMap.MerkleTree do
   end
 
   defp put(tree, <<0::size(1), rest_loc::bits>>, k, v) do
-    %{children: {first, second}} = init_empty_inner_node(tree)
-    new_first = put(first, rest_loc, k, v)
-    %__MODULE__{children: {new_first, second}} |> calculate_hash()
+    {hash, a, b} = init_empty_inner_node(tree)
+    new_a = put(a, rest_loc, k, v)
+    {nil, new_a, b} |> calculate_hash()
   end
 
   defp put(tree, <<1::size(1), rest_loc::bits>>, k, v) do
-    %{children: {first, second}} = init_empty_inner_node(tree)
-    new_second = put(second, rest_loc, k, v)
-    %__MODULE__{children: {first, new_second}} |> calculate_hash()
+    {hash, a, b} = init_empty_inner_node(tree)
+    new_b = put(b, rest_loc, k, v)
+    {nil, a, new_b} |> calculate_hash()
   end
 
   defp put(tree, <<>>, key, value) do
-    %{children: values = %{}} = init_empty_leaf(tree)
+    {_h, values} = init_empty_leaf(tree)
     new_values = Map.put(values, key, hash(value))
-    %__MODULE__{children: new_values, hash: hash(new_values)}
+    {hash(new_values), new_values}
   end
 
-  defp init_empty_leaf(%__MODULE__{} = tree), do: tree
-  defp init_empty_leaf(nil), do: %__MODULE__{children: %{}}
+  defp init_empty_leaf({_hash, _value} = tree), do: tree
+  defp init_empty_leaf(nil), do: {nil, %{}}
 
-  defp init_empty_inner_node(%__MODULE__{} = tree), do: tree
-  defp init_empty_inner_node(nil), do: %__MODULE__{children: {nil, nil}}
+  defp init_empty_inner_node({_hash, _a, _b} = tree), do: tree
+  defp init_empty_inner_node(nil), do: {nil, nil, nil}
 end
