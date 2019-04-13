@@ -2,7 +2,7 @@ defmodule MerkleMapTest do
   use ExUnit.Case
   doctest MerkleMap
 
-  describe "MerkleTree.new/2" do
+  describe "MerkleMap.new/2" do
     test "transforms map" do
       mm = MerkleMap.new(1..10, fn x -> {x, x * x} end)
       mm2 = Map.new(1..10, fn x -> {x, x * x} end) |> MerkleMap.new()
@@ -10,7 +10,7 @@ defmodule MerkleMapTest do
     end
   end
 
-  describe "MerkleTree.delete/2" do
+  describe "MerkleMap.delete/2" do
     test "deletes a record" do
       mm =
         MerkleMap.new(%{"foo" => "bar"})
@@ -20,7 +20,31 @@ defmodule MerkleMapTest do
     end
   end
 
-  describe "MerkleTree.equal?/2" do
+  describe "MerkleMap.diff_keys/3" do
+    test "diffs keys" do
+      mm1 = MerkleMap.new(%{"foo" => "bar"})
+      mm2 = MerkleMap.new(%{"foo" => "baz"})
+      assert ["foo"] == MerkleMap.diff_keys(mm1, mm2)
+    end
+
+    test "can do diff in steps (save transmitting data)" do
+      mm1 = MerkleMap.new(1..10000, fn x -> {x, x} end)
+
+      mm2 = MerkleMap.new(2..10001, fn x -> {x, x} end)
+
+      assert Enum.sort([1, 10001]) == Enum.sort(MerkleMap.diff_keys(mm1, mm2))
+
+      assert {:continue, first_partial} = MerkleMap.prepare_partial_diff(mm1, 8)
+      assert {:continue, second_partial} = MerkleMap.diff_keys(first_partial, mm2, 8)
+      assert {:continue, third_partial} = MerkleMap.diff_keys(second_partial, mm1, 8)
+      assert {:continue, fourth_partial} = MerkleMap.diff_keys(third_partial, mm2, 8)
+
+      assert {:ok, diff_keys} = MerkleMap.diff_keys(fourth_partial, mm1, 8)
+      assert Enum.sort([1, 10001]) == Enum.sort(diff_keys)
+    end
+  end
+
+  describe "MerkleMap.equal?/2" do
     test "computes equality" do
       mm1 = MerkleMap.new(%{"foo" => "bar"})
       mm2 = MerkleMap.new(%{"foo" => "bar"})

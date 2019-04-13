@@ -43,7 +43,11 @@ defmodule MerkleTreeTest do
     assert MerkleTree.new(%{foo: "bar", bar: "baz"})
   end
 
-  test "diff_keyss maps" do
+  test "keys/1" do
+    assert [:foo, :bar] = MerkleTree.keys(MerkleTree.new(%{foo: "bar", bar: "baz"}))
+  end
+
+  test "diff_keys maps" do
     m1 = MerkleTree.new(%{foo: "bar", food: "good"})
     m2 = MerkleTree.new(%{foo: "baz", food: "good", drink: "also good"})
     assert Enum.sort([:foo, :drink]) == Enum.sort(MerkleTree.diff_keys(m1, m2))
@@ -76,45 +80,5 @@ defmodule MerkleTreeTest do
 
     assert ["bar"] = MerkleTree.diff_keys(tree_one, tree_three)
     assert Enum.sort(["foo", "bar"]) == Enum.sort(MerkleTree.diff_keys(tree_two, tree_three))
-  end
-
-  test "can calculate partial diff_keys from partial tree" do
-    tree_one = MerkleTree.new(%{foo: "bar"})
-    tree_two = MerkleTree.new(%{foo: "baz"})
-
-    assert partial = MerkleTree.partial_tree(tree_one, 8)
-    assert [partial: x] = MerkleTree.diff_keys(partial, tree_two)
-
-    assert partial2 = MerkleTree.partial_tree(tree_one, 8, x)
-    assert [partial: y] = MerkleTree.diff_keys(partial2, MerkleTree.partial_tree(tree_two, 8, x))
-
-    assert partial3 = MerkleTree.partial_tree(tree_one, 8, <<x::bits, y::bits>>)
-
-    assert [partial: z] =
-             MerkleTree.diff_keys(
-               partial3,
-               MerkleTree.partial_tree(tree_two, 8, <<x::bits, y::bits>>)
-             )
-
-    assert partial4 = MerkleTree.partial_tree(tree_one, 8, <<x::bits, y::bits, z::bits>>)
-
-    assert [partial: zz] =
-             MerkleTree.diff_keys(
-               partial4,
-               MerkleTree.partial_tree(tree_two, 8, <<x::bits, y::bits, z::bits>>)
-             )
-
-    assert partial5 =
-             MerkleTree.partial_tree(tree_one, 8, <<x::bits, y::bits, z::bits, zz::bits>>)
-
-    assert [:foo] =
-             MerkleTree.diff_keys(
-               partial5,
-               MerkleTree.partial_tree(tree_two, 8, <<x::bits, y::bits, z::bits, zz::bits>>)
-             )
-
-    # [partial, partial2, partial3, partial4, partial5]
-    # |> Enum.map(&:erts_debug.size/1)
-    # |> IO.inspect()
   end
 end

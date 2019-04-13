@@ -79,6 +79,51 @@ defmodule MerkleMap do
     Map.take(mm.map, keys) |> new()
   end
 
+  def prepare_partial_diff(mm, depth) do
+    {:continue,
+     %MerkleTree.Diff{trees: [{<<>>, MerkleTree.partial_tree(mm.merkle_tree, <<>>, depth)}]}}
+  end
+
+  def diff_keys(mm1, mm2, depth \\ :full)
+
+  def diff_keys(%__MODULE__{} = mm1, %__MODULE__{} = mm2, :full) do
+    MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)
+  end
+
+  def diff_keys(%__MODULE__{} = mm1, %__MODULE__{} = mm2, depth)
+      when is_integer(depth) and depth > 0 do
+  end
+
+  def diff_keys(mm1, %__MODULE__.MerkleTree.Diff{} = partial, depth) do
+    diff_keys(partial, mm1, depth)
+  end
+
+  def diff_keys(%__MODULE__.MerkleTree.Diff{} = partial, %__MODULE__{} = mm, depth)
+      when is_integer(depth) and depth > 0 do
+    {partials, keys} =
+      Enum.flat_map(partial.trees, fn {loc, tree} ->
+        MerkleTree.diff_keys(tree, MerkleTree.partial_tree(mm.merkle_tree, loc, depth))
+        |> Enum.map(fn
+          {:partial, partial_loc} -> {:partial, <<loc::bitstring, partial_loc::bitstring>>}
+          other -> other
+        end)
+      end)
+      |> Enum.split_with(fn
+        {:partial, _loc} -> true
+        _ -> false
+      end)
+
+    trees =
+      Enum.map(partials, fn {:partial, loc} ->
+        {loc, MerkleTree.partial_tree(mm.merkle_tree, loc, depth)}
+      end)
+
+    case trees do
+      [] -> {:ok, partial.keys ++ keys}
+      trees -> {:continue, %__MODULE__.MerkleTree.Diff{keys: partial.keys ++ keys, trees: trees}}
+    end
+  end
+
   def merge(mm1, mm2) do
     MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)
     |> Enum.reduce(mm1, fn key, mm ->
