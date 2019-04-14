@@ -1,6 +1,12 @@
 defmodule MemoryHelper do
   def memory_kb(term) do
-    :erts_debug.flat_size(term) * 8.0 / :math.pow(2, 10)
+    (:erts_debug.flat_size(term) * 8.0 / :math.pow(2, 10))
+    |> Float.round(1)
+  end
+
+  def wire_kb(term) do
+    (byte_size(:erlang.term_to_binary(term)) / :math.pow(2, 10))
+    |> Float.round(1)
   end
 end
 
@@ -8,11 +14,13 @@ mm1 = MerkleMap.new(1..10000, fn x -> {x, x} end)
 
 mm2 = MerkleMap.new(2..10001, fn x -> {x, x} end)
 
-IO.inspect({FullMerkleMap, MemoryHelper.memory_kb(mm1)})
+IO.inspect({FullMerkleMapMemory, MemoryHelper.memory_kb(mm1)})
+IO.inspect({FullMerkleMapWire, MemoryHelper.wire_kb(mm1)})
 
 m = Map.new(1..10000, fn x -> {x, x} end)
 
-IO.inspect({Map, MemoryHelper.memory_kb(m)})
+IO.inspect({MapMemory, MemoryHelper.memory_kb(m)})
+IO.inspect({MapWire, MemoryHelper.wire_kb(m)})
 
 Enum.sort([1, 10001]) == Enum.sort(MerkleMap.diff_keys(mm1, mm2))
 
@@ -26,5 +34,13 @@ IO.inspect(
    Enum.map(
      [first_partial, second_partial, third_partial, fourth_partial],
      &MemoryHelper.memory_kb/1
+   )}
+)
+
+IO.inspect(
+  {MerkleMapSyncInStagesWire,
+   Enum.map(
+     [first_partial, second_partial, third_partial, fourth_partial],
+     &MemoryHelper.wire_kb/1
    )}
 )
