@@ -1,6 +1,6 @@
 defmodule MemoryHelper do
   def memory_kb(term) do
-    (:erts_debug.flat_size(term) * 8.0 / :math.pow(2, 10))
+    (:erts_debug.flat_size(term) / 8.0 / :math.pow(2, 10))
     |> Float.round(1)
   end
 
