@@ -123,10 +123,7 @@ defmodule MerkleMap.MerkleTree do
   end
 
   def delete(tree, key) do
-    case delete(tree, location(key), key) do
-      [] -> %__MODULE__{} |> calculate_hash()
-      tree -> tree
-    end
+    delete(tree, location(key), key)
   end
 
   def delete(tree, <<0::size(1), rest_loc::bits>>, key) do

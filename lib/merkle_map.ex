@@ -90,10 +90,6 @@ defmodule MerkleMap do
     MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)
   end
 
-  def diff_keys(%__MODULE__{} = mm1, %__MODULE__{} = mm2, depth)
-      when is_integer(depth) and depth > 0 do
-  end
-
   def diff_keys(mm1, %__MODULE__.MerkleTree.Diff{} = partial, depth) do
     diff_keys(partial, mm1, depth)
   end
