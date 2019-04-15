@@ -24,7 +24,24 @@ defmodule MerkleMapTest do
     test "diffs keys" do
       mm1 = MerkleMap.new(%{"foo" => "bar"})
       mm2 = MerkleMap.new(%{"foo" => "baz"})
-      assert ["foo"] == MerkleMap.diff_keys(mm1, mm2)
+      assert {:ok, ["foo"]} == MerkleMap.diff_keys(mm1, mm2)
+    end
+
+    test "can do diff in steps (save transmitting data) (small example)" do
+      mm1 = MerkleMap.new([1], fn x -> {x, x} end)
+
+      mm2 = MerkleMap.new([], fn x -> {x, x} end)
+
+      assert {:ok, keys} = MerkleMap.diff_keys(mm1, mm2)
+      assert Enum.sort([1]) == Enum.sort(keys)
+
+      assert {:continue, first_partial} = MerkleMap.prepare_partial_diff(mm1, 8)
+      assert {:continue, second_partial} = MerkleMap.diff_keys(first_partial, mm2, 8)
+      assert {:continue, third_partial} = MerkleMap.diff_keys(second_partial, mm1, 8)
+      assert {:continue, fourth_partial} = MerkleMap.diff_keys(third_partial, mm2, 8)
+
+      assert {:ok, diff_keys} = MerkleMap.diff_keys(fourth_partial, mm1, 8)
+      assert Enum.sort([1]) == Enum.sort(diff_keys)
     end
 
     test "can do diff in steps (save transmitting data)" do
@@ -32,7 +49,8 @@ defmodule MerkleMapTest do
 
       mm2 = MerkleMap.new(2..10001, fn x -> {x, x} end)
 
-      assert Enum.sort([1, 10001]) == Enum.sort(MerkleMap.diff_keys(mm1, mm2))
+      assert {:ok, keys} = MerkleMap.diff_keys(mm1, mm2)
+      assert Enum.sort([1, 10001]) == Enum.sort(keys)
 
       assert {:continue, first_partial} = MerkleMap.prepare_partial_diff(mm1, 8)
       assert {:continue, second_partial} = MerkleMap.diff_keys(first_partial, mm2, 8)

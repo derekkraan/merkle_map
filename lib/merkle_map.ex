@@ -86,8 +86,8 @@ defmodule MerkleMap do
 
   def diff_keys(mm1, mm2, depth \\ :full)
 
-  def diff_keys(%__MODULE__{} = mm1, %__MODULE__{} = mm2, :full) do
-    MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)
+  def diff_keys(%__MODULE__{} = mm1, %__MODULE__{} = mm2, _) do
+    {:ok, MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)}
   end
 
   def diff_keys(mm1, %__MODULE__.MerkleTree.Diff{} = partial, depth) do
