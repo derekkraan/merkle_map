@@ -60,6 +60,56 @@ defmodule MerkleMapTest do
       assert {:ok, diff_keys} = MerkleMap.diff_keys(fourth_partial, mm1, 8)
       assert Enum.sort([1, 10001]) == Enum.sort(diff_keys)
     end
+
+    test "using diff truncation" do
+      mm1 = MerkleMap.new(1..5000, fn x -> {x, x} end)
+
+      mm2 = MerkleMap.new(4500..5000, fn x -> {x, x} end)
+
+      update_with_truncated_diffs = fn mm1, mm2, truncate ->
+        assert {:continue, first_partial} = MerkleMap.prepare_partial_diff(mm1, 8)
+        first_partial = MerkleMap.truncate_diff(first_partial, truncate)
+        assert {:continue, second_partial} = MerkleMap.diff_keys(first_partial, mm2, 8)
+        second_partial = MerkleMap.truncate_diff(second_partial, truncate)
+        assert {:continue, third_partial} = MerkleMap.diff_keys(second_partial, mm1, 8)
+        third_partial = MerkleMap.truncate_diff(third_partial, truncate)
+        assert {:continue, fourth_partial} = MerkleMap.diff_keys(third_partial, mm2, 8)
+        fourth_partial = MerkleMap.truncate_diff(fourth_partial, truncate)
+
+        assert {:ok, diff_keys} = MerkleMap.diff_keys(fourth_partial, mm1, 8)
+
+        Enum.reduce(diff_keys, mm2, fn x, mm ->
+          MerkleMap.put(mm, x, x)
+        end)
+      end
+
+      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
+      refute MerkleMap.equal?(mm1, mm2)
+
+      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
+      refute MerkleMap.equal?(mm1, mm2)
+
+      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
+      refute MerkleMap.equal?(mm1, mm2)
+
+      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
+      refute MerkleMap.equal?(mm1, mm2)
+
+      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
+      refute MerkleMap.equal?(mm1, mm2)
+
+      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
+      refute MerkleMap.equal?(mm1, mm2)
+
+      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
+      refute MerkleMap.equal?(mm1, mm2)
+
+      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
+      refute MerkleMap.equal?(mm1, mm2)
+
+      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
+      assert MerkleMap.equal?(mm1, mm2)
+    end
   end
 
   describe "MerkleMap.equal?/2" do

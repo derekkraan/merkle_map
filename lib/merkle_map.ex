@@ -120,6 +120,12 @@ defmodule MerkleMap do
     end
   end
 
+  def truncate_diff(%__MODULE__.MerkleTree.Diff{} = diff, amount) do
+    keys = Enum.take(diff.keys, amount)
+    trees = Enum.take(diff.trees, amount - length(keys))
+    %{diff | keys: keys, trees: trees}
+  end
+
   def merge(mm1, mm2) do
     MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)
     |> Enum.reduce(mm1, fn key, mm ->
