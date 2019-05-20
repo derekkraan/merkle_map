@@ -1,6 +1,8 @@
 defmodule MerkleMap.MerkleTree do
   defstruct object: {"", [], []}
 
+  @phash_range :math.pow(2, 32) |> round()
+
   def new() do
     %__MODULE__{}
   end
@@ -13,7 +15,7 @@ defmodule MerkleMap.MerkleTree do
   end
 
   def hash(thing) do
-    <<Murmur.hash_x86_32(thing)::size(32)>>
+    <<:erlang.phash2(thing, @phash_range)::size(32)>>
   end
 
   def location(key) do

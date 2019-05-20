@@ -22,7 +22,8 @@ m = Map.new(1..10000, fn x -> {x, x} end)
 IO.inspect({MapMemory, MemoryHelper.memory_kb(m)})
 IO.inspect({MapWire, MemoryHelper.wire_kb(m)})
 
-Enum.sort([1, 10001]) == Enum.sort(MerkleMap.diff_keys(mm1, mm2))
+{:ok, diff_keys} = MerkleMap.diff_keys(mm1, mm2)
+Enum.sort([1, 10001]) == Enum.sort(diff_keys)
 
 {:continue, first_partial} = MerkleMap.prepare_partial_diff(mm1, 8)
 {:continue, second_partial} = MerkleMap.diff_keys(first_partial, mm2, 8)

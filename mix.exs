@@ -32,7 +32,6 @@ defmodule MerkleMap.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:murmur, "~> 1.0", optional: true},
       {:stream_data, "~> 0.4", only: :test},
       {:benchee, "> 0.0.0", only: :dev},
       {:ex_doc, "> 0.0.0", only: :dev}

@@ -44,7 +44,7 @@ defmodule MerkleTreeTest do
   end
 
   test "keys/1" do
-    assert [:foo, :bar] = MerkleTree.keys(MerkleTree.new(%{foo: "bar", bar: "baz"}))
+    assert [:bar, :foo] = MerkleTree.keys(MerkleTree.new(%{foo: "bar", bar: "baz"}))
   end
 
   test "diff_keys maps" do
