@@ -7,16 +7,16 @@ MerkleMap is a drop-in replacement for Map.
 ## Benchmarks
 
 ```
-##### With input 100_000 #####                                                               
-Name                             ips        average  deviation         median         99th % 
-merkle_map_not_equal_2       29.68 M      0.0337 μs±140140.94%           0 μs           0 μs 
-merkle_map_equal_2           26.57 M      0.0376 μs±120079.35%           0 μs           0 μs 
-map_put_3                     3.48 M        0.29 μs ±62046.73%           0 μs        1.19 μs 
-merkle_map_put_3            0.0299 M       33.45 μs   ±423.46%       32.51 μs       52.15 μs 
-merkle_map_merge_2          0.0216 M       46.27 μs    ±22.46%       43.23 μs       90.85 μs 
-map_equal_2                0.00103 M      973.70 μs     ±4.77%      971.72 μs     1083.10 μs 
-map_not_equal_2            0.00096 M     1036.80 μs    ±11.78%     1003.98 μs     1617.23 μs 
-map_merge_2                0.00064 M     1553.92 μs    ±62.33%     1524.15 μs     1839.37 μs 
+##### With input 100_000 #####                                                              
+Name                             ips        average  deviation         median         99th %
+merkle_map_not_equal_2       35.27 M     0.00003 ms±100268.45%           0 ms           0 ms
+merkle_map_equal_2           26.76 M     0.00004 ms ±98106.44%           0 ms           0 ms
+map_put_3                    13.87 M     0.00007 ms  ±8711.21%           0 ms     0.00133 ms
+merkle_map_put_3            0.0798 M      0.0125 ms  ±3058.31%     0.00723 ms      0.0130 ms
+merkle_map_merge_2          0.0370 M      0.0270 ms  ±2246.31%      0.0162 ms      0.0338 ms
+map_not_equal_2            0.00099 M        1.01 ms     ±7.78%        1.00 ms        1.37 ms
+map_equal_2                0.00094 M        1.06 ms    ±12.97%        1.02 ms        1.68 ms
+map_merge_2                0.00059 M        1.71 ms    ±34.77%        1.62 ms        2.59 ms
 ```
 
 ## Installation
