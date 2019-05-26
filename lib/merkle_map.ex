@@ -33,7 +33,10 @@ defmodule MerkleMap do
     Map.has_key?(m, k)
   end
 
-  def equal?(mm1, mm2), do: MerkleTree.equal?(mm1.merkle_tree, mm2.merkle_tree)
+  def equal?(mm1, mm2) do
+    {mt1, mt2, equal} = MerkleTree.equal?(mm1.merkle_tree, mm2.merkle_tree)
+    {%__MODULE__{mm1 | merkle_tree: mt1}, %__MODULE__{mm2 | merkle_tree: mt2}, equal}
+  end
 
   def put(%__MODULE__{} = mm, k, v) do
     %{mm | map: Map.put(mm.map, k, v), merkle_tree: MerkleTree.put(mm.merkle_tree, k, v)}
@@ -87,7 +90,8 @@ defmodule MerkleMap do
   def diff_keys(mm1, mm2, depth \\ :full)
 
   def diff_keys(%__MODULE__{} = mm1, %__MODULE__{} = mm2, _) do
-    {:ok, MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)}
+    {mt1, mt2, diff_keys} = MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)
+    {:ok, %__MODULE__{mm1 | merkle_tree: mt1}, %__MODULE__{mm2 | merkle_tree: mt2}, diff_keys}
   end
 
   def diff_keys(mm1, %__MODULE__.MerkleTree.Diff{} = partial, depth) do
@@ -127,8 +131,9 @@ defmodule MerkleMap do
   end
 
   def merge(mm1, mm2) do
-    MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)
-    |> Enum.reduce(mm1, fn key, mm ->
+    {:ok, mm1, mm2, diff_keys} = diff_keys(mm1, mm2)
+
+    Enum.reduce(diff_keys, mm1, fn key, mm ->
       if Map.has_key?(mm2.map, key) do
         put(mm, key, get(mm2, key))
       else
@@ -138,8 +143,9 @@ defmodule MerkleMap do
   end
 
   def merge(mm1, mm2, update_fun) do
-    MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)
-    |> Enum.reduce(mm1, fn key, mm ->
+    {:ok, mm1, mm2, diff_keys} = diff_keys(mm1, mm2)
+
+    Enum.reduce(diff_keys, mm1, fn key, mm ->
       cond do
         has_key?(mm, key) && has_key?(mm2, key) ->
           val = update_fun.(key, get(mm, key), get(mm2, key))
