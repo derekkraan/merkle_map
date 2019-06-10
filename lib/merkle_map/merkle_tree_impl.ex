@@ -100,10 +100,18 @@ defmodule MerkleMap.MerkleTreeImpl do
   end
 
   def equal?(tree1, tree2) do
-    {_, tree1} = calculate_hashes(tree1)
-    {_, tree2} = calculate_hashes(tree2)
-    {tree1, tree2, check_equal(tree1, tree2)}
+    assert_hashes_calculated(tree1)
+    assert_hashes_calculated(tree2)
+    check_equal(tree1, tree2)
   end
+
+  defp assert_hashes_calculated({@empty_hash, _, _}),
+    do: raise(ArgumentError, "Must call MerkleMap.update_hashes/1 before calling this function.")
+
+  defp assert_hashes_calculated({@empty_hash, _}),
+    do: raise(ArgumentError, "Must call MerkleMap.update_hashes/1 before calling this function.")
+
+  defp assert_hashes_calculated(_), do: nil
 
   def check_equal({hash, _}, {hash, _}), do: true
   def check_equal({hash, _, _}, {hash, _, _}), do: true
@@ -111,10 +119,10 @@ defmodule MerkleMap.MerkleTreeImpl do
   def check_equal(_, _), do: false
 
   def diff_keys(t1, t2) do
-    {_h, t1} = calculate_hashes(t1)
-    {_h, t2} = calculate_hashes(t2)
+    assert_hashes_calculated(t1)
+    assert_hashes_calculated(t2)
 
-    {t1, t2, List.flatten(diff_keys(t1, t2, 0)) |> remove_tuple_wrappers()}
+    List.flatten(diff_keys(t1, t2, 0)) |> remove_tuple_wrappers()
   end
 
   def diff_keys(@empty_branch, tree, _levels), do: raw_keys(tree)
@@ -160,28 +168,53 @@ defmodule MerkleMap.MerkleTreeImpl do
 
   def keys(tree), do: remove_tuple_wrappers(List.flatten(raw_keys(tree)))
 
+  def subtree(tree, loc, depth) do
+    assert_hashes_calculated(tree)
+    {tree, do_subtree(tree, loc, depth)}
+  end
+
+  defp do_subtree([], _loc, _depth), do: []
+  defp do_subtree({_, _} = leaf, _loc, _depth), do: leaf
+
+  defp do_subtree({_, b_l, _}, <<0::size(1), rest_loc::bits>>, depth),
+    do: do_subtree(b_l, rest_loc, depth)
+
+  defp do_subtree({_, _, b_r}, <<1::size(1), rest_loc::bits>>, depth),
+    do: do_subtree(b_r, rest_loc, depth)
+
+  defp do_subtree(node, <<>>, 0), do: node
+
+  defp do_subtree({h, b_l, b_r}, <<>>, depth) do
+    {h, do_subtree(b_l, <<>>, depth - 1), do_subtree(b_r, <<>>, depth - 1)}
+  end
+
   defp raw_keys(@empty_branch), do: []
   defp raw_keys({_, b_l, b_r}), do: [raw_keys(b_l), raw_keys(b_r)]
   defp raw_keys({_, {_, contents}}), do: Map.keys(contents) |> add_tuple_wrappers()
 
-  defp calculate_hashes(@empty_branch), do: {@empty_hash, @empty_branch}
+  def calculate_hashes(tree) do
+    {_, new_tree} = do_calculate_hashes(tree)
+    new_tree
+  end
 
-  defp calculate_hashes({@empty_hash, b_l, b_r}) do
-    {hash_l, b_l} = calculate_hashes(b_l)
-    {hash_r, b_r} = calculate_hashes(b_r)
+  defp do_calculate_hashes(@empty_branch), do: {@empty_hash, @empty_branch}
+
+  defp do_calculate_hashes({@empty_hash, b_l, b_r}) do
+    {hash_l, b_l} = do_calculate_hashes(b_l)
+    {hash_r, b_r} = do_calculate_hashes(b_r)
     total_hash = hash({hash_l, hash_r})
     {total_hash, {total_hash, b_l, b_r}}
   end
 
-  defp calculate_hashes({hash, _, _} = inner_node), do: {hash, inner_node}
+  defp do_calculate_hashes({hash, _, _} = inner_node), do: {hash, inner_node}
 
-  defp calculate_hashes({@empty_hash, {hash_key, contents}}) do
+  defp do_calculate_hashes({@empty_hash, {hash_key, contents}}) do
     c_hash = hash(contents)
     new_leaf = {c_hash, {hash_key, contents}}
     {c_hash, new_leaf}
   end
 
-  defp calculate_hashes({hash, _} = leaf) do
+  defp do_calculate_hashes({hash, _} = leaf) do
     {hash, leaf}
   end
 

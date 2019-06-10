@@ -4,9 +4,9 @@ defmodule MerkleMapTest do
 
   describe "MerkleMap.new/2" do
     test "transforms map" do
-      mm = MerkleMap.new(1..10, fn x -> {x, x * x} end)
-      mm2 = Map.new(1..10, fn x -> {x, x * x} end) |> MerkleMap.new()
-      assert {_, _, true} = MerkleMap.equal?(mm, mm2)
+      mm = MerkleMap.new(1..10, fn x -> {x, x * x} end) |> MerkleMap.update_hashes()
+      mm2 = Map.new(1..10, fn x -> {x, x * x} end) |> MerkleMap.new() |> MerkleMap.update_hashes()
+      assert MerkleMap.equal?(mm, mm2)
     end
   end
 
@@ -22,21 +22,22 @@ defmodule MerkleMapTest do
 
   describe "MerkleMap.diff_keys/3" do
     test "diffs keys" do
-      mm1 = MerkleMap.new(%{"foo" => "bar"})
-      mm2 = MerkleMap.new(%{"foo" => "baz"})
-      assert {:ok, _, _, ["foo"]} = MerkleMap.diff_keys(mm1, mm2)
+      mm1 = MerkleMap.new(%{"foo" => "bar"}) |> MerkleMap.update_hashes()
+      mm2 = MerkleMap.new(%{"foo" => "baz"}) |> MerkleMap.update_hashes()
+      assert {:ok, ["foo"]} = MerkleMap.diff_keys(mm1, mm2)
     end
 
     @tag :skip
     test "can do diff in steps (save transmitting data) (small example)" do
-      mm1 = MerkleMap.new([1], fn x -> {x, x} end)
+      mm1 = MerkleMap.new([1], fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
-      mm2 = MerkleMap.new([], fn x -> {x, x} end)
+      mm2 = MerkleMap.new([], fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
       assert {:ok, keys} = MerkleMap.diff_keys(mm1, mm2)
       assert Enum.sort([1]) == Enum.sort(keys)
 
       assert {:continue, first_partial} = MerkleMap.prepare_partial_diff(mm1, 8)
+
       assert {:continue, second_partial} = MerkleMap.diff_keys(first_partial, mm2, 8)
       assert {:continue, third_partial} = MerkleMap.diff_keys(second_partial, mm1, 8)
       assert {:continue, fourth_partial} = MerkleMap.diff_keys(third_partial, mm2, 8)
@@ -47,9 +48,9 @@ defmodule MerkleMapTest do
 
     @tag :skip
     test "can do diff in steps (save transmitting data)" do
-      mm1 = MerkleMap.new(1..10000, fn x -> {x, x} end)
+      mm1 = MerkleMap.new(1..10000, fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
-      mm2 = MerkleMap.new(2..10001, fn x -> {x, x} end)
+      mm2 = MerkleMap.new(2..10001, fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
       assert {:ok, keys} = MerkleMap.diff_keys(mm1, mm2)
       assert Enum.sort([1, 10001]) == Enum.sort(keys)
@@ -65,9 +66,9 @@ defmodule MerkleMapTest do
 
     @tag :skip
     test "using diff truncation" do
-      mm1 = MerkleMap.new(1..5000, fn x -> {x, x} end)
+      mm1 = MerkleMap.new(1..5000, fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
-      mm2 = MerkleMap.new(4500..5000, fn x -> {x, x} end)
+      mm2 = MerkleMap.new(4500..5000, fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
       update_with_truncated_diffs = fn mm1, mm2, truncate ->
         assert {:continue, first_partial} = MerkleMap.prepare_partial_diff(mm1, 8)
@@ -117,33 +118,33 @@ defmodule MerkleMapTest do
 
   describe "MerkleMap.equal?/2" do
     test "computes equality" do
-      mm1 = MerkleMap.new(%{"foo" => "bar"})
-      mm2 = MerkleMap.new(%{"foo" => "bar"})
-      assert {_, _, true} = MerkleMap.equal?(mm1, mm2)
+      mm1 = MerkleMap.new(%{"foo" => "bar"}) |> MerkleMap.update_hashes()
+      mm2 = MerkleMap.new(%{"foo" => "bar"}) |> MerkleMap.update_hashes()
+      assert MerkleMap.equal?(mm1, mm2)
     end
 
     test "detects inequality of values" do
-      mm1 = MerkleMap.new(%{"foo" => "bar"})
-      mm2 = MerkleMap.new(%{"foo" => "baz"})
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
+      mm1 = MerkleMap.new(%{"foo" => "bar"}) |> MerkleMap.update_hashes()
+      mm2 = MerkleMap.new(%{"foo" => "baz"}) |> MerkleMap.update_hashes()
+      refute MerkleMap.equal?(mm1, mm2)
     end
 
     test "detects inequality of keys" do
-      mm1 = MerkleMap.new(%{"foo" => "bar"})
-      mm2 = MerkleMap.new(%{"food" => "bar"})
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
+      mm1 = MerkleMap.new(%{"foo" => "bar"}) |> MerkleMap.update_hashes()
+      mm2 = MerkleMap.new(%{"food" => "bar"}) |> MerkleMap.update_hashes()
+      refute MerkleMap.equal?(mm1, mm2)
     end
 
     test "detects presence of other key" do
-      mm1 = MerkleMap.new(%{"foo" => "bar"})
-      mm2 = MerkleMap.new(%{"foo" => "bar", "other_key" => false})
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
+      mm1 = MerkleMap.new(%{"foo" => "bar"}) |> MerkleMap.update_hashes()
+      mm2 = MerkleMap.new(%{"foo" => "bar", "other_key" => false}) |> MerkleMap.update_hashes()
+      refute MerkleMap.equal?(mm1, mm2)
     end
 
     test "detects absence of key" do
-      mm1 = MerkleMap.new(%{"foo" => "bar"})
-      mm2 = MerkleMap.new(%{})
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
+      mm1 = MerkleMap.new(%{"foo" => "bar"}) |> MerkleMap.update_hashes()
+      mm2 = MerkleMap.new(%{}) |> MerkleMap.update_hashes()
+      refute MerkleMap.equal?(mm1, mm2)
     end
   end
 
@@ -158,11 +159,12 @@ defmodule MerkleMapTest do
     test "drops the correct keys" do
       map = %{one: 1, two: 2, three: 3}
 
-      assert {_, _, true} =
-               MerkleMap.equal?(
-                 MerkleMap.new(map) |> MerkleMap.drop([:two, :three]),
-                 MerkleMap.new(%{one: 1})
-               )
+      assert MerkleMap.equal?(
+               MerkleMap.new(map)
+               |> MerkleMap.drop([:two, :three])
+               |> MerkleMap.update_hashes(),
+               MerkleMap.new(%{one: 1}) |> MerkleMap.update_hashes()
+             )
     end
   end
 
@@ -170,29 +172,27 @@ defmodule MerkleMapTest do
     test "takes only the required keys" do
       map = %{one: 1, two: 2, three: 3}
 
-      assert {_, _, true} =
-               MerkleMap.equal?(
-                 MerkleMap.new(map) |> MerkleMap.take([:one]),
-                 MerkleMap.new(%{one: 1})
-               )
+      assert MerkleMap.equal?(
+               MerkleMap.new(map) |> MerkleMap.take([:one]) |> MerkleMap.update_hashes(),
+               MerkleMap.new(%{one: 1}) |> MerkleMap.update_hashes()
+             )
     end
   end
 
   describe "MerkleMap.merge/2" do
     test "merges all keys" do
-      mm1 = %{one: 1} |> MerkleMap.new()
-      mm2 = %{two: 2} |> MerkleMap.new()
+      mm1 = %{one: 1} |> MerkleMap.new() |> MerkleMap.update_hashes()
+      mm2 = %{two: 2} |> MerkleMap.new() |> MerkleMap.update_hashes()
 
-      assert {_, _, true} =
-               MerkleMap.equal?(
-                 MerkleMap.merge(mm1, mm2),
-                 MerkleMap.new(%{one: 1, two: 2})
-               )
+      assert MerkleMap.equal?(
+               MerkleMap.merge(mm1, mm2) |> MerkleMap.update_hashes(),
+               MerkleMap.new(%{one: 1, two: 2}) |> MerkleMap.update_hashes()
+             )
     end
 
     test "merges from second argument into first" do
-      mm1 = %{one: 1} |> MerkleMap.new()
-      mm2 = %{one: 2} |> MerkleMap.new()
+      mm1 = %{one: 1} |> MerkleMap.new() |> MerkleMap.update_hashes()
+      mm2 = %{one: 2} |> MerkleMap.new() |> MerkleMap.update_hashes()
 
       assert 2 =
                MerkleMap.merge(mm1, mm2)
@@ -202,25 +202,24 @@ defmodule MerkleMapTest do
 
   describe "MerkleMap.merge/3" do
     test "merges using supplied merge function" do
-      mm1 = %{one: 1} |> MerkleMap.new()
-      mm2 = %{one: 2} |> MerkleMap.new()
+      mm1 = %{one: 1} |> MerkleMap.new() |> MerkleMap.update_hashes()
+      mm2 = %{one: 2} |> MerkleMap.new() |> MerkleMap.update_hashes()
 
-      assert {_, _, true} =
-               MerkleMap.equal?(
-                 MerkleMap.new(%{one: 3}),
-                 MerkleMap.merge(mm1, mm2, fn :one, 1, 2 -> 3 end)
-               )
+      assert MerkleMap.equal?(
+               MerkleMap.new(%{one: 3}) |> MerkleMap.update_hashes(),
+               MerkleMap.merge(mm1, mm2, fn :one, 1, 2 -> 3 end) |> MerkleMap.update_hashes()
+             )
     end
 
     test "merges keys only present in one map without merge function" do
-      mm1 = %{one: 1} |> MerkleMap.new()
-      mm2 = %{two: 2} |> MerkleMap.new()
+      mm1 = %{one: 1} |> MerkleMap.new() |> MerkleMap.update_hashes()
+      mm2 = %{two: 2} |> MerkleMap.new() |> MerkleMap.update_hashes()
 
-      assert {_, _, true} =
-               MerkleMap.equal?(
-                 MerkleMap.new(%{one: 1, two: 2}),
-                 MerkleMap.merge(mm1, mm2, fn _, _, _ -> :overridden end)
-               )
+      assert MerkleMap.equal?(
+               MerkleMap.new(%{one: 1, two: 2}) |> MerkleMap.update_hashes(),
+               MerkleMap.merge(mm1, mm2, fn _, _, _ -> :overridden end)
+               |> MerkleMap.update_hashes()
+             )
     end
   end
 
@@ -228,7 +227,11 @@ defmodule MerkleMapTest do
     test "pops the value" do
       mm = %{one: 1, two: 2} |> MerkleMap.new()
       assert {1, new_mm} = MerkleMap.pop(mm, :one)
-      assert {_, _, true} = MerkleMap.equal?(new_mm, MerkleMap.new(%{two: 2}))
+
+      assert MerkleMap.equal?(
+               MerkleMap.update_hashes(new_mm),
+               MerkleMap.update_hashes(MerkleMap.new(%{two: 2}))
+             )
     end
   end
 
@@ -236,49 +239,55 @@ defmodule MerkleMapTest do
     test "pops the value if it exists" do
       mm = %{one: 1, two: 2} |> MerkleMap.new()
       assert {1, new_mm} = MerkleMap.pop_lazy(mm, :one, fn -> 13 end)
-      assert {_, _, true} = MerkleMap.equal?(new_mm, MerkleMap.new(%{two: 2}))
+
+      assert MerkleMap.equal?(
+               new_mm |> MerkleMap.update_hashes(),
+               MerkleMap.new(%{two: 2}) |> MerkleMap.update_hashes()
+             )
     end
 
     test "uses the function if the value does not exist" do
-      mm = %{one: 1, two: 2} |> MerkleMap.new()
+      mm = %{one: 1, two: 2} |> MerkleMap.new() |> MerkleMap.update_hashes()
+
       assert {13, new_mm} = MerkleMap.pop_lazy(mm, :three, fn -> 13 end)
-      assert {_, _, true} = MerkleMap.equal?(new_mm, mm)
+
+      assert MerkleMap.equal?(new_mm |> MerkleMap.update_hashes(), mm)
     end
   end
 
   describe "MerkleMap.put_new/3" do
     test "puts a new value" do
-      assert {_, _, true} =
-               MerkleMap.equal?(
-                 MerkleMap.new(%{one: 1}),
-                 MerkleMap.new() |> MerkleMap.put_new(:one, 1)
-               )
+      assert MerkleMap.equal?(
+               MerkleMap.new(%{one: 1}) |> MerkleMap.update_hashes(),
+               MerkleMap.new() |> MerkleMap.put_new(:one, 1) |> MerkleMap.update_hashes()
+             )
     end
 
     test "does not overwrite an existing value" do
-      assert {_, _, true} =
-               MerkleMap.equal?(
-                 MerkleMap.new(%{one: 1}),
-                 MerkleMap.new(%{one: 1}) |> MerkleMap.put_new(:one, 2)
-               )
+      assert MerkleMap.equal?(
+               MerkleMap.new(%{one: 1}) |> MerkleMap.update_hashes(),
+               MerkleMap.new(%{one: 1}) |> MerkleMap.put_new(:one, 2) |> MerkleMap.update_hashes()
+             )
     end
   end
 
   describe "MerkleMap.put_new_lazy/3" do
     test "puts a new value" do
-      assert {_, _, true} =
-               MerkleMap.equal?(
-                 MerkleMap.new(%{one: 1}),
-                 MerkleMap.new() |> MerkleMap.put_new_lazy(:one, fn -> 1 end)
-               )
+      assert MerkleMap.equal?(
+               MerkleMap.new(%{one: 1}) |> MerkleMap.update_hashes(),
+               MerkleMap.new()
+               |> MerkleMap.put_new_lazy(:one, fn -> 1 end)
+               |> MerkleMap.update_hashes()
+             )
     end
 
     test "does not overwrite an existing value" do
-      assert {_, _, true} =
-               MerkleMap.equal?(
-                 MerkleMap.new(%{one: 1}),
-                 MerkleMap.new(%{one: 1}) |> MerkleMap.put_new_lazy(:one, fn -> 2 end)
-               )
+      assert MerkleMap.equal?(
+               MerkleMap.new(%{one: 1}) |> MerkleMap.update_hashes(),
+               MerkleMap.new(%{one: 1})
+               |> MerkleMap.put_new_lazy(:one, fn -> 2 end)
+               |> MerkleMap.update_hashes()
+             )
     end
   end
 
@@ -312,15 +321,21 @@ defmodule MerkleMapTest do
 
   describe "MerkleMap.update/4" do
     test "sets initial value" do
-      mm = MerkleMap.new() |> MerkleMap.update(:one, 1, fn _ -> 2 end)
-      mm_compare = MerkleMap.new(%{one: 1})
-      assert {_, _, true} = MerkleMap.equal?(mm, mm_compare)
+      mm =
+        MerkleMap.new() |> MerkleMap.update(:one, 1, fn _ -> 2 end) |> MerkleMap.update_hashes()
+
+      mm_compare = MerkleMap.new(%{one: 1}) |> MerkleMap.update_hashes()
+      assert MerkleMap.equal?(mm, mm_compare)
     end
 
     test "updates value value" do
-      mm = MerkleMap.new(%{one: 1}) |> MerkleMap.update(:one, 1, fn 1 -> 2 end)
-      mm_compare = MerkleMap.new(%{one: 2})
-      assert {_, _, true} = MerkleMap.equal?(mm, mm_compare)
+      mm =
+        MerkleMap.new(%{one: 1})
+        |> MerkleMap.update(:one, 1, fn 1 -> 2 end)
+        |> MerkleMap.update_hashes()
+
+      mm_compare = MerkleMap.new(%{one: 2}) |> MerkleMap.update_hashes()
+      assert MerkleMap.equal?(mm, mm_compare)
     end
   end
 
@@ -333,11 +348,10 @@ defmodule MerkleMapTest do
     test "updates the key when it is found" do
       mm = MerkleMap.new(%{one: 1})
 
-      assert {_, _, true} =
-               MerkleMap.equal?(
-                 MerkleMap.update!(mm, :one, fn 1 -> 2 end),
-                 MerkleMap.new(%{one: 2})
-               )
+      assert MerkleMap.equal?(
+               MerkleMap.update!(mm, :one, fn 1 -> 2 end) |> MerkleMap.update_hashes(),
+               MerkleMap.new(%{one: 2}) |> MerkleMap.update_hashes()
+             )
     end
   end
 
@@ -350,11 +364,10 @@ defmodule MerkleMapTest do
     test "updates the key when it is found" do
       mm = MerkleMap.new(%{one: 1})
 
-      assert {_, _, true} =
-               MerkleMap.equal?(
-                 MerkleMap.replace!(mm, :one, 2),
-                 MerkleMap.new(%{one: 2})
-               )
+      assert MerkleMap.equal?(
+               MerkleMap.replace!(mm, :one, 2) |> MerkleMap.update_hashes(),
+               MerkleMap.new(%{one: 2}) |> MerkleMap.update_hashes()
+             )
     end
   end
 
@@ -362,21 +375,33 @@ defmodule MerkleMapTest do
     test "updates and returns if the key exists" do
       mm = MerkleMap.new(%{one: 1})
       assert {1, mm_compare} = MerkleMap.get_and_update(mm, :one, fn 1 -> {1, 2} end)
-      assert {_, _, true} = MerkleMap.equal?(mm_compare, MerkleMap.new(%{one: 2}))
+
+      assert MerkleMap.equal?(
+               mm_compare |> MerkleMap.update_hashes(),
+               MerkleMap.new(%{one: 2}) |> MerkleMap.update_hashes()
+             )
     end
 
     test "sets and returns if the key does not exist" do
       mm = MerkleMap.new()
       assert {1, mm_compare} = MerkleMap.get_and_update(mm, :one, fn nil -> {1, 2} end)
-      assert {_, _, true} = MerkleMap.equal?(mm_compare, MerkleMap.new(%{one: 2}))
+
+      assert MerkleMap.equal?(
+               mm_compare |> MerkleMap.update_hashes(),
+               MerkleMap.new(%{one: 2}) |> MerkleMap.update_hashes()
+             )
     end
   end
 
   describe "MerkleMap.get_and_update!/3" do
     test "updates and returns if the key exists" do
-      mm = MerkleMap.new(%{one: 1})
+      mm = MerkleMap.new(%{one: 1}) |> MerkleMap.update_hashes()
       assert {1, mm_compare} = MerkleMap.get_and_update!(mm, :one, fn 1 -> {1, 2} end)
-      assert {_, _, true} = MerkleMap.equal?(mm_compare, MerkleMap.new(%{one: 2}))
+
+      assert MerkleMap.equal?(
+               mm_compare |> MerkleMap.update_hashes(),
+               MerkleMap.new(%{one: 2}) |> MerkleMap.update_hashes()
+             )
     end
 
     test "raises if the key does not exist" do
