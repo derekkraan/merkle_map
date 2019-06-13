@@ -90,7 +90,7 @@ defmodule MerkleMapTest do
       mm2 = MerkleMap.new(4500..5000, fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
       update_with_truncated_diffs = fn mm1, mm2, truncate ->
-        {:ok, diff_keys} = do_truncated_partial_diffs({mm1, mm2}, 500)
+        {:ok, diff_keys} = do_truncated_partial_diffs({mm1, mm2}, truncate)
 
         Enum.reduce(diff_keys, mm2, fn x, mm ->
           MerkleMap.put(mm, x, x)
