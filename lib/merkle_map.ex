@@ -88,35 +88,35 @@ defmodule MerkleMap do
     %__MODULE__{mm | merkle_tree: MerkleTree.update_hashes(mm.merkle_tree)}
   end
 
-  def prepare_partial_diff(mm, depth) do
-    {:continue,
-     %MerkleTree.Diff{trees: [{<<>>, MerkleTree.subtree(mm.merkle_tree, <<>>, depth)}]}}
-  end
-
   def diff_keys(mm1, mm2, depth \\ :full)
 
   def diff_keys(%__MODULE__{} = mm1, %__MODULE__{} = mm2, _) do
     {:ok, MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)}
   end
 
-  def diff_keys(mm1, %__MODULE__.MerkleTree.Diff{} = partial, depth) do
-    diff_keys(partial, mm1, depth)
+  def prepare_partial_diff(mm, depth) do
+    {:continue,
+     %MerkleTree.Diff{trees: [{<<>>, MerkleTree.subtree(mm.merkle_tree, <<>>, depth)}]}}
   end
 
-  def diff_keys(%__MODULE__.MerkleTree.Diff{} = partial, %__MODULE__{} = mm, depth)
+  def continue_partial_diff(mm1, %__MODULE__.MerkleTree.Diff{} = partial, depth) do
+    continue_partial_diff(partial, mm1, depth)
+  end
+
+  def continue_partial_diff(%__MODULE__.MerkleTree.Diff{} = partial, %__MODULE__{} = mm, depth)
       when is_integer(depth) and depth > 0 do
-    {diff_keys, _mm_merkle_tree} =
-      Enum.reduce(partial.trees, {[], mm.merkle_tree}, fn {loc, tree},
-                                                          {acc_keys, mm_merkle_tree} ->
-        {mm_merkle_tree, sub_tree} = MerkleTree.subtree(mm_merkle_tree, loc, depth)
-        {:ok, _mm_merkle_tree, _t, diff_keys} = MerkleTree.diff_keys(sub_tree, tree)
+    diff_keys =
+      Enum.reduce(partial.trees, [], fn {loc, tree}, acc_keys ->
+        sub_tree = MerkleTree.subtree(mm.merkle_tree, loc, depth)
+
+        diff_keys = MerkleTree.diff_keys(sub_tree, tree, bit_size(loc))
 
         Enum.map(diff_keys, fn
           {:partial, partial_loc} -> {:partial, <<loc::bitstring, partial_loc::bitstring>>}
           other -> other
         end)
 
-        {[diff_keys | acc_keys], mm_merkle_tree}
+        [diff_keys | acc_keys]
       end)
 
     {partials, keys} =
@@ -128,7 +128,7 @@ defmodule MerkleMap do
 
     trees =
       Enum.map(partials, fn {:partial, loc} ->
-        {_, sub_tree} = MerkleTree.subtree(mm.merkle_tree, loc, depth)
+        sub_tree = MerkleTree.subtree(mm.merkle_tree, loc, depth)
         {loc, sub_tree}
       end)
 

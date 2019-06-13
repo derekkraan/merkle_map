@@ -27,7 +27,21 @@ defmodule MerkleMapTest do
       assert {:ok, ["foo"]} = MerkleMap.diff_keys(mm1, mm2)
     end
 
-    @tag :skip
+    def do_partial_diffs({mm1, mm2}) do
+      {:continue, partial_diff} = MerkleMap.prepare_partial_diff(mm1, 8)
+      do_partial_diffs(partial_diff, {mm2, mm1})
+    end
+
+    def do_partial_diffs(partial_diff, {mm1, mm2}) do
+      case MerkleMap.continue_partial_diff(partial_diff, mm1, 8) do
+        {:continue, partial_diff} ->
+          do_partial_diffs(partial_diff, {mm2, mm1})
+
+        {:ok, diffs} ->
+          {:ok, diffs}
+      end
+    end
+
     test "can do diff in steps (save transmitting data) (small example)" do
       mm1 = MerkleMap.new([1], fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
@@ -36,83 +50,63 @@ defmodule MerkleMapTest do
       assert {:ok, keys} = MerkleMap.diff_keys(mm1, mm2)
       assert Enum.sort([1]) == Enum.sort(keys)
 
-      assert {:continue, first_partial} = MerkleMap.prepare_partial_diff(mm1, 8)
+      assert {:ok, diff_keys} = do_partial_diffs({mm1, mm2})
 
-      assert {:continue, second_partial} = MerkleMap.diff_keys(first_partial, mm2, 8)
-      assert {:continue, third_partial} = MerkleMap.diff_keys(second_partial, mm1, 8)
-      assert {:continue, fourth_partial} = MerkleMap.diff_keys(third_partial, mm2, 8)
-
-      assert {:ok, diff_keys} = MerkleMap.diff_keys(fourth_partial, mm1, 8)
       assert Enum.sort([1]) == Enum.sort(diff_keys)
     end
 
-    @tag :skip
     test "can do diff in steps (save transmitting data)" do
-      mm1 = MerkleMap.new(1..10000, fn x -> {x, x} end) |> MerkleMap.update_hashes()
+      mm1 = MerkleMap.new(1..100_000, fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
-      mm2 = MerkleMap.new(2..10001, fn x -> {x, x} end) |> MerkleMap.update_hashes()
+      mm2 = MerkleMap.new(2..100_001, fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
       assert {:ok, keys} = MerkleMap.diff_keys(mm1, mm2)
-      assert Enum.sort([1, 10001]) == Enum.sort(keys)
+      assert Enum.sort([1, 100_001]) == Enum.sort(keys)
 
-      assert {:continue, first_partial} = MerkleMap.prepare_partial_diff(mm1, 8)
-      assert {:continue, second_partial} = MerkleMap.diff_keys(first_partial, mm2, 8)
-      assert {:continue, third_partial} = MerkleMap.diff_keys(second_partial, mm1, 8)
-      assert {:continue, fourth_partial} = MerkleMap.diff_keys(third_partial, mm2, 8)
+      assert {:ok, diff_keys} = do_partial_diffs({mm1, mm2})
 
-      assert {:ok, diff_keys} = MerkleMap.diff_keys(fourth_partial, mm1, 8)
-      assert Enum.sort([1, 10001]) == Enum.sort(diff_keys)
+      assert Enum.sort([1, 100_001]) == Enum.sort(diff_keys)
     end
 
-    @tag :skip
+    def do_truncated_partial_diffs({mm1, mm2}, max_diffs) do
+      {:continue, partial_diff} = MerkleMap.prepare_partial_diff(mm1, 8)
+      do_truncated_partial_diffs(partial_diff, {mm2, mm1}, max_diffs)
+    end
+
+    def do_truncated_partial_diffs(partial_diff, {mm1, mm2}, max_diffs) do
+      case MerkleMap.continue_partial_diff(partial_diff, mm1, 8) do
+        {:continue, partial_diff} ->
+          partial_diff = MerkleMap.truncate_diff(partial_diff, max_diffs)
+          do_truncated_partial_diffs(partial_diff, {mm2, mm1}, max_diffs)
+
+        {:ok, diffs} ->
+          {:ok, diffs}
+      end
+    end
+
     test "using diff truncation" do
       mm1 = MerkleMap.new(1..5000, fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
       mm2 = MerkleMap.new(4500..5000, fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
       update_with_truncated_diffs = fn mm1, mm2, truncate ->
-        assert {:continue, first_partial} = MerkleMap.prepare_partial_diff(mm1, 8)
-        first_partial = MerkleMap.truncate_diff(first_partial, truncate)
-        assert {:continue, second_partial} = MerkleMap.diff_keys(first_partial, mm2, 8)
-        second_partial = MerkleMap.truncate_diff(second_partial, truncate)
-        assert {:continue, third_partial} = MerkleMap.diff_keys(second_partial, mm1, 8)
-        third_partial = MerkleMap.truncate_diff(third_partial, truncate)
-        assert {:continue, fourth_partial} = MerkleMap.diff_keys(third_partial, mm2, 8)
-        fourth_partial = MerkleMap.truncate_diff(fourth_partial, truncate)
-
-        assert {:ok, diff_keys} = MerkleMap.diff_keys(fourth_partial, mm1, 8)
+        {:ok, diff_keys} = do_truncated_partial_diffs({mm1, mm2}, 500)
 
         Enum.reduce(diff_keys, mm2, fn x, mm ->
           MerkleMap.put(mm, x, x)
         end)
+        |> MerkleMap.update_hashes()
       end
 
-      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
+      mm2 =
+        Enum.reduce(1..8, mm2, fn _x, mm2 ->
+          mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
+          refute MerkleMap.equal?(mm1, mm2)
+          mm2
+        end)
 
       mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
-
-      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
-
-      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
-
-      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
-
-      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
-
-      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
-
-      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
-
-      mm2 = update_with_truncated_diffs.(mm1, mm2, 500)
-      assert {_, _, false} = MerkleMap.equal?(mm1, mm2)
+      assert MerkleMap.equal?(mm1, mm2)
     end
   end
 

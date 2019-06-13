@@ -27,9 +27,10 @@ defmodule MerkleMap.MerkleTree do
     %__MODULE__{tree: MerkleTreeImpl.delete(tree, key)}
   end
 
-  @spec diff_keys(t(), t()) :: {t(), t(), [key()]}
-  def diff_keys(%__MODULE__{tree: tree}, %__MODULE__{tree: tree2}) do
-    MerkleTreeImpl.diff_keys(tree, tree2)
+  @spec diff_keys(t(), t(), depth :: integer()) :: {t(), t(), [key()]}
+  def diff_keys(%__MODULE__{tree: tree}, %__MODULE__{tree: tree2}, depth \\ 0)
+      when is_integer(depth) and depth >= 0 do
+    MerkleTreeImpl.diff_keys(tree, tree2, depth)
   end
 
   @spec diff_keys(t(), t()) :: {t(), t(), boolean()}
@@ -43,8 +44,12 @@ defmodule MerkleMap.MerkleTree do
   end
 
   def subtree(%__MODULE__{tree: tree}, location, depth)
-      when is_binary(location) and is_integer(depth) do
+      when is_bitstring(location) and is_integer(depth) and depth > 0 do
     %__MODULE__{tree: MerkleTreeImpl.subtree(tree, location, depth)}
+  end
+
+  def max_depth(%__MODULE__{tree: tree}) do
+    MerkleTreeImpl.max_depth(tree)
   end
 
   def update_hashes(%__MODULE__{tree: tree}) do

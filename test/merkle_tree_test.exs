@@ -57,6 +57,16 @@ defmodule MerkleTreeTest do
     assert Enum.sort(["foo", "bar"]) == Enum.sort(diff_keys)
   end
 
+  test "subtree computes a sub tree" do
+    subtree =
+      Map.new(1..10000, fn x -> {x, x} end)
+      |> MerkleTree.new()
+      |> MerkleTree.update_hashes()
+      |> MerkleTree.subtree("", 4)
+
+    assert 4 = MerkleTree.max_depth(subtree)
+  end
+
   property "diff_keys of itself is always empty" do
     check all key <- term(),
               value <- term() do

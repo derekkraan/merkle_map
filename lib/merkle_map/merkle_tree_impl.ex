@@ -118,25 +118,33 @@ defmodule MerkleMap.MerkleTreeImpl do
   def check_equal(@empty_branch, @empty_branch), do: true
   def check_equal(_, _), do: false
 
-  def diff_keys(t1, t2) do
+  def diff_keys(t1, t2, depth \\ 0) when is_integer(depth) do
     assert_hashes_calculated(t1)
     assert_hashes_calculated(t2)
 
-    List.flatten(diff_keys(t1, t2, 0)) |> remove_tuple_wrappers()
+    List.flatten(do_diff_keys(t1, t2, depth)) |> remove_tuple_wrappers()
   end
 
-  def diff_keys(@empty_branch, tree, _levels), do: raw_keys(tree)
-  def diff_keys(tree, @empty_branch, _levels), do: raw_keys(tree)
+  defp do_diff_keys(@empty_branch, tree, _levels), do: raw_keys(tree)
+  defp do_diff_keys(tree, @empty_branch, _levels), do: raw_keys(tree)
 
-  def diff_keys({hash, _, _}, {hash, _, _}, _levels), do: []
+  defp do_diff_keys({hash, _, _}, {hash, _, _}, _levels), do: []
 
-  def diff_keys({_, t1_l, t1_r}, {_, t2_l, t2_r}, levels) do
-    [diff_keys(t1_l, t2_l, levels + 1), diff_keys(t1_r, t2_r, levels + 1)]
+  defp do_diff_keys({_, t1_l, t1_r}, {_, t2_l, t2_r}, levels) do
+    [do_diff_keys(t1_l, t2_l, levels + 1), do_diff_keys(t1_r, t2_r, levels + 1)]
   end
 
-  def diff_keys({hash, _}, {hash, _}, _levels), do: []
+  defp do_diff_keys(_, {:partial, loc}, _levels) do
+    [{{:partial, loc}}]
+  end
 
-  def diff_keys({_, leaf1}, {_, leaf2}, _levels) do
+  defp do_diff_keys({:partial, loc}, _, _levels) do
+    [{{:partial, loc}}]
+  end
+
+  defp do_diff_keys({hash, _}, {hash, _}, _levels), do: []
+
+  defp do_diff_keys({_, leaf1}, {_, leaf2}, _levels) do
     {_, map1} = leaf1
     {_, map2} = leaf2
     raw_keys_1 = Map.keys(map1)
@@ -151,46 +159,62 @@ defmodule MerkleMap.MerkleTreeImpl do
     |> Enum.map(&add_tuple_wrappers/1)
   end
 
-  def diff_keys({_, _, _} = inner_node, {_, _} = leaf, levels),
-    do: diff_keys(leaf, inner_node, levels)
+  defp do_diff_keys({_, _, _} = inner_node, {_, _} = leaf, levels),
+    do: do_diff_keys(leaf, inner_node, levels)
 
-  def diff_keys({_, _} = leaf, {_, b_l, b_r} = _inner_node, levels) do
+  defp do_diff_keys({_, _} = leaf, {_, b_l, b_r} = _inner_node, levels) do
     {_, {<<_discard::size(levels), direction::size(1), _rest::bits>>, _}} = leaf
 
     case direction do
       0 ->
-        [diff_keys(b_l, leaf, levels + 1), raw_keys(b_r)]
+        [do_diff_keys(b_l, leaf, levels + 1), raw_keys(b_r)]
 
       1 ->
-        [raw_keys(b_l), diff_keys(b_r, leaf, levels + 1)]
+        [raw_keys(b_l), do_diff_keys(b_r, leaf, levels + 1)]
     end
   end
 
   def keys(tree), do: remove_tuple_wrappers(List.flatten(raw_keys(tree)))
 
-  def subtree(tree, loc, depth) do
+  def subtree(tree, loc, depth) when is_integer(depth) and depth > 0 and is_bitstring(loc) do
     assert_hashes_calculated(tree)
-    {tree, do_subtree(tree, loc, depth)}
+
+    find_subtree(tree, loc)
+    |> get_subtree(loc, depth)
   end
 
-  defp do_subtree([], _loc, _depth), do: []
-  defp do_subtree({_, _} = leaf, _loc, _depth), do: leaf
+  defp find_subtree([], _loc), do: []
+  defp find_subtree({_, _} = leaf, _loc), do: leaf
 
-  defp do_subtree({_, b_l, _}, <<0::size(1), rest_loc::bits>>, depth),
-    do: do_subtree(b_l, rest_loc, depth)
+  defp find_subtree({_, b_l, _}, <<0::size(1), rest_loc::bits>>),
+    do: find_subtree(b_l, rest_loc)
 
-  defp do_subtree({_, _, b_r}, <<1::size(1), rest_loc::bits>>, depth),
-    do: do_subtree(b_r, rest_loc, depth)
+  defp find_subtree({_, _, b_r}, <<1::size(1), rest_loc::bits>>),
+    do: find_subtree(b_r, rest_loc)
 
-  defp do_subtree(node, <<>>, 0), do: node
+  defp find_subtree(node, <<>>), do: node
 
-  defp do_subtree({h, b_l, b_r}, <<>>, depth) do
-    {h, do_subtree(b_l, <<>>, depth - 1), do_subtree(b_r, <<>>, depth - 1)}
+  defp get_subtree([], _loc, _depth), do: []
+  defp get_subtree({_, _} = leaf, _loc, _depth), do: leaf
+  defp get_subtree(_node, loc, 0), do: {:partial, loc}
+
+  defp get_subtree({h, b_l, b_r}, loc, depth) do
+    {h, get_subtree(b_l, <<loc::bits, 0::size(1)>>, depth - 1),
+     get_subtree(b_r, <<loc::bits, 1::size(1)>>, depth - 1)}
+  end
+
+  def max_depth(_, depth \\ 0)
+  def max_depth([], depth), do: depth
+  def max_depth({_, _}, depth), do: depth
+
+  def max_depth({_, b_l, b_r}, depth) do
+    Enum.max([max_depth(b_l, depth + 1), max_depth(b_r, depth + 1)])
   end
 
   defp raw_keys(@empty_branch), do: []
   defp raw_keys({_, b_l, b_r}), do: [raw_keys(b_l), raw_keys(b_r)]
   defp raw_keys({_, {_, contents}}), do: Map.keys(contents) |> add_tuple_wrappers()
+  defp raw_keys({:partial, loc}), do: [{:partial, loc}] |> add_tuple_wrappers
 
   def calculate_hashes(tree) do
     {_, new_tree} = do_calculate_hashes(tree)
