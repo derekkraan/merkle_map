@@ -26,7 +26,7 @@ This package can be installed by adding `merkle_map` to your list of dependencie
 ```elixir
 def deps do
   [
-    {:merkle_map, "~> 0.1.0"},
+    {:merkle_map, "~> 0.2.0"},
   ]
 end
 ```
