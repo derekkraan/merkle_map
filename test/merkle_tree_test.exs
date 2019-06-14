@@ -4,36 +4,6 @@ defmodule MerkleTreeTest do
 
   alias MerkleMap.MerkleTree
 
-  property "diff_keys of itself is always empty" do
-    check all key <- term(),
-              value <- term() do
-      map = %{key => value}
-      tree = MerkleTree.new(map)
-      assert [] = MerkleTree.diff_keys(tree, tree)
-    end
-  end
-
-  property "diff_keys identifies missing key" do
-    check all key <- term(),
-              value <- term() do
-      map = %{key => value}
-      tree = MerkleTree.new(map)
-      assert [key] = MerkleTree.diff_keys(MerkleTree.new(), tree)
-    end
-  end
-
-  property "arbitrarily large map can still find one changed key" do
-    tree =
-      Map.new(1..1000, fn x -> {x, x * x} end)
-      |> MerkleTree.new()
-
-    check all key <- term(),
-              value <- term() do
-      new_tree = MerkleTree.put(tree, key, value)
-      assert [key] = MerkleTree.diff_keys(new_tree, tree)
-    end
-  end
-
   test "init a merkle tree" do
     assert MerkleTree.put(MerkleTree.new(), "foo", "bar")
            |> MerkleTree.put("bar", "baz")
@@ -48,37 +18,81 @@ defmodule MerkleTreeTest do
   end
 
   test "diff_keys maps" do
-    m1 = MerkleTree.new(%{foo: "bar", food: "good"})
-    m2 = MerkleTree.new(%{foo: "baz", food: "good", drink: "also good"})
+    m1 = MerkleTree.new(%{foo: "bar", food: "good"}) |> MerkleTree.update_hashes()
+
+    m2 =
+      MerkleTree.new(%{foo: "baz", food: "good", drink: "also good"})
+      |> MerkleTree.update_hashes()
+
     assert Enum.sort([:foo, :drink]) == Enum.sort(MerkleTree.diff_keys(m1, m2))
   end
 
   test "remove a key" do
-    m1 = MerkleTree.new(%{foo: "bar", bar: "baz"})
-    m2 = MerkleTree.new(%{foo: "bar"})
+    m1 = MerkleTree.new(%{foo: "bar", bar: "baz"}) |> MerkleTree.update_hashes()
+    m2 = MerkleTree.new(%{foo: "bar"}) |> MerkleTree.update_hashes()
 
-    removed = MerkleTree.delete(m1, :bar)
+    removed = MerkleTree.delete(m1, :bar) |> MerkleTree.update_hashes()
 
     assert [] = MerkleTree.diff_keys(m2, removed)
     assert MerkleTree.equal?(m2, removed)
   end
 
   test "equal?" do
-    tree_one = MerkleTree.put(MerkleTree.new(), "foo", "bar")
+    tree_one = MerkleTree.put(MerkleTree.new(), "foo", "bar") |> MerkleTree.update_hashes()
     assert MerkleTree.equal?(tree_one, tree_one)
 
-    tree_two = MerkleTree.put(MerkleTree.new(), "foo", "baz")
+    tree_two = MerkleTree.put(MerkleTree.new(), "foo", "baz") |> MerkleTree.update_hashes()
     refute MerkleTree.equal?(tree_one, tree_two)
   end
 
   test "show diff_keys" do
-    tree_one = MerkleTree.put(MerkleTree.new(), "foo", "bar")
+    tree_one = MerkleTree.put(MerkleTree.new(), "foo", "bar") |> MerkleTree.update_hashes()
     assert [] = MerkleTree.diff_keys(tree_one, tree_one)
-    tree_two = MerkleTree.put(MerkleTree.new(), "foo", "baz")
+    tree_two = MerkleTree.put(MerkleTree.new(), "foo", "baz") |> MerkleTree.update_hashes()
     assert ["foo"] = MerkleTree.diff_keys(tree_one, tree_two)
-    tree_three = MerkleTree.put(tree_one, "bar", "baz")
+    tree_three = MerkleTree.put(tree_one, "bar", "baz") |> MerkleTree.update_hashes()
 
     assert ["bar"] = MerkleTree.diff_keys(tree_one, tree_three)
-    assert Enum.sort(["foo", "bar"]) == Enum.sort(MerkleTree.diff_keys(tree_two, tree_three))
+    diff_keys = MerkleTree.diff_keys(tree_two, tree_three)
+    assert Enum.sort(["foo", "bar"]) == Enum.sort(diff_keys)
+  end
+
+  test "subtree computes a sub tree" do
+    subtree =
+      Map.new(1..10000, fn x -> {x, x} end)
+      |> MerkleTree.new()
+      |> MerkleTree.update_hashes()
+      |> MerkleTree.subtree("", 4)
+
+    assert 4 = MerkleTree.max_depth(subtree)
+  end
+
+  property "diff_keys of itself is always empty" do
+    check all key <- term(),
+              value <- term() do
+      map = %{key => value}
+      tree = MerkleTree.new(map) |> MerkleTree.update_hashes()
+      assert [] = MerkleTree.diff_keys(tree, tree)
+    end
+  end
+
+  property "diff_keys identifies missing key" do
+    check all key <- term(),
+              value <- term() do
+      map = %{key => value}
+      tree = MerkleTree.new(map) |> MerkleTree.update_hashes()
+      assert [key] = MerkleTree.diff_keys(MerkleTree.new() |> MerkleTree.update_hashes(), tree)
+    end
+  end
+
+  property "arbitrarily large map can still find one changed key" do
+    tree =
+      Map.new(1..1000, fn x -> {x, x * x} end) |> MerkleTree.new() |> MerkleTree.update_hashes()
+
+    check all key <- term(),
+              value <- term() do
+      new_tree = MerkleTree.put(tree, key, value) |> MerkleTree.update_hashes()
+      assert [key] = MerkleTree.diff_keys(new_tree, tree)
+    end
   end
 end
