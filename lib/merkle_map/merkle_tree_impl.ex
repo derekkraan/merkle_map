@@ -6,6 +6,8 @@ defmodule MerkleMap.MerkleTreeImpl do
   # {hash, {key_hash, contents}} - leaf node
   #
 
+  @moduledoc false
+
   @empty_hash []
   @empty_branch []
 
