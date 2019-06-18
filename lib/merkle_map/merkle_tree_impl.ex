@@ -25,12 +25,6 @@ defmodule MerkleMap.MerkleTreeImpl do
     @empty_branch
   end
 
-  def new(enum) do
-    Enum.reduce(enum, new(), fn {k, v}, tree ->
-      put(tree, k, v)
-    end)
-  end
-
   def put(tree, k, v) do
     hash_k = hash(k)
     put_leaf(tree, hash_k, {hash_k, %{k => v}})

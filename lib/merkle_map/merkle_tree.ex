@@ -9,7 +9,9 @@ defmodule MerkleMap.MerkleTree do
 
   @spec new(Enumerable.t()) :: t()
   def new(enum) do
-    %__MODULE__{tree: MerkleTreeImpl.new(enum)}
+    Enum.reduce(enum, new(), fn {k, v}, tree ->
+      put(tree, k, v)
+    end)
   end
 
   @spec new() :: t()
