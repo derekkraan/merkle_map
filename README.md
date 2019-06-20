@@ -4,10 +4,10 @@ MerkleMap is an augmented "plain" Map. Certain operations are faster, and others
 
 MerkleMap is almost a drop-in replacement for Map. It has the same functions, with the following additions:
 
-`MerkleMap.diff_keys/2` returns the keys that differ between two merkle maps.
-`MerkleMap.prepare_partial_diff/2` prepares a partial diff.
-`MerkleMap.continue_partial_diff/3` continues the partial diff.
-`MerkleMap.update_hashes/1` updates the hashes in the merkle map.
+- `MerkleMap.diff_keys/2` returns the keys that differ between two merkle maps.
+- `MerkleMap.prepare_partial_diff/2` prepares a partial diff.
+- `MerkleMap.continue_partial_diff/3` continues the partial diff.
+- `MerkleMap.update_hashes/1` updates the hashes in the merkle map.
 
 When mutating the merkle map, hashes are not automatically updated. Hashes must be updated manually. This is both for performance, but also to keep function signatures from getting too silly. Functions that accept two merkle maps (eg, `merge/2`) will require that you have run `update_hashes/1` on both input maps, or an ArgumentError will be raised.
 
