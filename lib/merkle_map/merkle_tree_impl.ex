@@ -179,7 +179,7 @@ defmodule MerkleMap.MerkleTreeImpl do
     |> get_subtree(loc, depth)
   end
 
-  defp find_subtree([], _loc), do: []
+  defp find_subtree(@empty_branch, _loc), do: @empty_branch
   defp find_subtree({_, _} = leaf, _loc), do: leaf
 
   defp find_subtree({_, b_l, _}, <<0::size(1), rest_loc::bits>>),
@@ -190,7 +190,7 @@ defmodule MerkleMap.MerkleTreeImpl do
 
   defp find_subtree(node, <<>>), do: node
 
-  defp get_subtree([], _loc, _depth), do: []
+  defp get_subtree(@empty_branch, _loc, _depth), do: @empty_branch
   defp get_subtree({_, _} = leaf, _loc, _depth), do: leaf
   defp get_subtree(_node, loc, 0), do: {:partial, loc}
 
@@ -200,7 +200,7 @@ defmodule MerkleMap.MerkleTreeImpl do
   end
 
   def max_depth(_, depth \\ 0)
-  def max_depth([], depth), do: depth
+  def max_depth(@empty_branch, depth), do: depth
   def max_depth({_, _}, depth), do: depth
 
   def max_depth({_, b_l, b_r}, depth) do
