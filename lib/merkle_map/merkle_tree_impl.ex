@@ -242,11 +242,17 @@ defmodule MerkleMap.MerkleTreeImpl do
     <<:erlang.phash2(x, @hash_limit)::size(@max_levels)>>
   end
 
-  defp add_tuple_wrappers(keys) do
-    Enum.map(keys, fn x -> {x} end)
+  defp add_tuple_wrappers(keys, wrapped_keys \\ [])
+  defp add_tuple_wrappers([], wrapped), do: wrapped
+
+  defp add_tuple_wrappers([key | keys], wrapped) do
+    add_tuple_wrappers(keys, [{key} | wrapped])
   end
 
-  defp remove_tuple_wrappers(raw_keys) do
-    Enum.map(raw_keys, fn {x} -> x end)
+  defp remove_tuple_wrappers(keys, unwrapped_keys \\ [])
+  defp remove_tuple_wrappers([], unwrapped), do: unwrapped
+
+  defp remove_tuple_wrappers([{key} | keys], unwrapped) do
+    remove_tuple_wrappers(keys, [key | unwrapped])
   end
 end
