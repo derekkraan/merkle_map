@@ -18,17 +18,11 @@ defmodule MerkleMap.MerkleTreeImpl do
   @type branch :: leaf() | inner_node() | empty_branch()
   @type hash() :: empty_hash() | binary()
 
-  @levels 32
-  @hash_limit round(:math.pow(2, @levels))
+  @max_levels 32
+  @hash_limit round(:math.pow(2, @max_levels))
 
   def new() do
     @empty_branch
-  end
-
-  def new(enum) do
-    Enum.reduce(enum, new(), fn {k, v}, tree ->
-      put(tree, k, v)
-    end)
   end
 
   def put(tree, k, v) do
@@ -36,11 +30,11 @@ defmodule MerkleMap.MerkleTreeImpl do
     put_leaf(tree, hash_k, {hash_k, %{k => v}})
   end
 
-  def put_leaf(@empty_branch, _rest_hash_k, leaf_node) do
+  defp put_leaf(@empty_branch, _rest_hash_k, leaf_node) do
     {@empty_hash, leaf_node}
   end
 
-  def put_leaf({_hash, branch_l, branch_r}, <<direction::size(1), rest_hash_k::bits>>, leaf_node) do
+  defp put_leaf({_hash, branch_l, branch_r}, <<direction::size(1), rest_hash_k::bits>>, leaf_node) do
     case direction do
       0 ->
         {@empty_hash, put_leaf(branch_l, rest_hash_k, leaf_node), branch_r}
@@ -50,12 +44,12 @@ defmodule MerkleMap.MerkleTreeImpl do
     end
   end
 
-  def put_leaf({_, {hash_k, found_map}}, _rest_hash_k, {hash_k, new_map}) do
+  defp put_leaf({_, {hash_k, found_map}}, _rest_hash_k, {hash_k, new_map}) do
     {@empty_hash, {hash_k, Map.merge(found_map, new_map)}}
   end
 
-  def put_leaf({_, _} = found_leaf_node, rest_hash_k, leaf_node) do
-    discard_bits = @levels - bit_size(rest_hash_k)
+  defp put_leaf({_, _} = found_leaf_node, rest_hash_k, leaf_node) do
+    discard_bits = @max_levels - bit_size(rest_hash_k)
 
     {_, {<<_::size(discard_bits), found_leaf_direction::size(1), _::bits>>, _}} = found_leaf_node
 
@@ -115,10 +109,10 @@ defmodule MerkleMap.MerkleTreeImpl do
 
   defp assert_hashes_calculated(_), do: nil
 
-  def check_equal({hash, _}, {hash, _}), do: true
-  def check_equal({hash, _, _}, {hash, _, _}), do: true
-  def check_equal(@empty_branch, @empty_branch), do: true
-  def check_equal(_, _), do: false
+  defp check_equal({hash, _}, {hash, _}), do: true
+  defp check_equal({hash, _, _}, {hash, _, _}), do: true
+  defp check_equal(@empty_branch, @empty_branch), do: true
+  defp check_equal(_, _), do: false
 
   def diff_keys(t1, t2, depth \\ 0) when is_integer(depth) do
     assert_hashes_calculated(t1)
@@ -137,11 +131,11 @@ defmodule MerkleMap.MerkleTreeImpl do
   end
 
   defp do_diff_keys(_, {:partial, loc}, _levels) do
-    [{{:partial, loc}}]
+    [{:partial, loc}] |> add_tuple_wrappers()
   end
 
   defp do_diff_keys({:partial, loc}, _, _levels) do
-    [{{:partial, loc}}]
+    [{:partial, loc}] |> add_tuple_wrappers()
   end
 
   defp do_diff_keys({hash, _}, {hash, _}, _levels), do: []
@@ -153,12 +147,13 @@ defmodule MerkleMap.MerkleTreeImpl do
     raw_keys_2 = Map.keys(map2)
 
     [
-      Enum.reject(raw_keys_1, fn k ->
-        Map.get(map1, k) == Map.get(map2, k)
-      end),
-      raw_keys_2 -- raw_keys_1
+      add_tuple_wrappers(
+        Enum.reject(raw_keys_1, fn k ->
+          Map.get(map1, k) == Map.get(map2, k)
+        end)
+      ),
+      add_tuple_wrappers(raw_keys_2 -- raw_keys_1)
     ]
-    |> Enum.map(&add_tuple_wrappers/1)
   end
 
   defp do_diff_keys({_, _, _} = inner_node, {_, _} = leaf, levels),
@@ -185,7 +180,7 @@ defmodule MerkleMap.MerkleTreeImpl do
     |> get_subtree(loc, depth)
   end
 
-  defp find_subtree([], _loc), do: []
+  defp find_subtree(@empty_branch, _loc), do: @empty_branch
   defp find_subtree({_, _} = leaf, _loc), do: leaf
 
   defp find_subtree({_, b_l, _}, <<0::size(1), rest_loc::bits>>),
@@ -196,7 +191,7 @@ defmodule MerkleMap.MerkleTreeImpl do
 
   defp find_subtree(node, <<>>), do: node
 
-  defp get_subtree([], _loc, _depth), do: []
+  defp get_subtree(@empty_branch, _loc, _depth), do: @empty_branch
   defp get_subtree({_, _} = leaf, _loc, _depth), do: leaf
   defp get_subtree(_node, loc, 0), do: {:partial, loc}
 
@@ -206,7 +201,7 @@ defmodule MerkleMap.MerkleTreeImpl do
   end
 
   def max_depth(_, depth \\ 0)
-  def max_depth([], depth), do: depth
+  def max_depth(@empty_branch, depth), do: depth
   def max_depth({_, _}, depth), do: depth
 
   def max_depth({_, b_l, b_r}, depth) do
@@ -245,14 +240,20 @@ defmodule MerkleMap.MerkleTreeImpl do
   end
 
   defp hash(x) do
-    <<:erlang.phash2(x, @hash_limit)::size(@levels)>>
+    <<:erlang.phash2(x, @hash_limit)::size(@max_levels)>>
   end
 
-  defp add_tuple_wrappers(keys) do
-    Enum.map(keys, fn x -> {x} end)
+  defp add_tuple_wrappers(keys, wrapped_keys \\ [])
+  defp add_tuple_wrappers([], wrapped), do: wrapped
+
+  defp add_tuple_wrappers([key | keys], wrapped) do
+    add_tuple_wrappers(keys, [{key} | wrapped])
   end
 
-  defp remove_tuple_wrappers(raw_keys) do
-    Enum.map(raw_keys, fn {x} -> x end)
+  defp remove_tuple_wrappers(keys, unwrapped_keys \\ [])
+  defp remove_tuple_wrappers([], unwrapped), do: unwrapped
+
+  defp remove_tuple_wrappers([{key} | keys], unwrapped) do
+    remove_tuple_wrappers(keys, [key | unwrapped])
   end
 end

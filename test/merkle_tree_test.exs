@@ -14,7 +14,8 @@ defmodule MerkleTreeTest do
   end
 
   test "keys/1" do
-    assert [:bar, :foo] = MerkleTree.keys(MerkleTree.new(%{foo: "bar", bar: "baz"}))
+    assert Enum.sort([:bar, :foo]) ==
+             Enum.sort(MerkleTree.keys(MerkleTree.new(%{foo: "bar", bar: "baz"})))
   end
 
   test "diff_keys maps" do
