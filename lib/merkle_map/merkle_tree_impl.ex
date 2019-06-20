@@ -147,12 +147,13 @@ defmodule MerkleMap.MerkleTreeImpl do
     raw_keys_2 = Map.keys(map2)
 
     [
-      Enum.reject(raw_keys_1, fn k ->
-        Map.get(map1, k) == Map.get(map2, k)
-      end),
-      raw_keys_2 -- raw_keys_1
+      add_tuple_wrappers(
+        Enum.reject(raw_keys_1, fn k ->
+          Map.get(map1, k) == Map.get(map2, k)
+        end)
+      ),
+      add_tuple_wrappers(raw_keys_2 -- raw_keys_1)
     ]
-    |> Enum.map(&add_tuple_wrappers/1)
   end
 
   defp do_diff_keys({_, _, _} = inner_node, {_, _} = leaf, levels),
