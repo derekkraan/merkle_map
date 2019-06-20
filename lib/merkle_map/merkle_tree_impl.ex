@@ -18,8 +18,8 @@ defmodule MerkleMap.MerkleTreeImpl do
   @type branch :: leaf() | inner_node() | empty_branch()
   @type hash() :: empty_hash() | binary()
 
-  @levels 32
-  @hash_limit round(:math.pow(2, @levels))
+  @max_levels 32
+  @hash_limit round(:math.pow(2, @max_levels))
 
   def new() do
     @empty_branch
@@ -49,7 +49,7 @@ defmodule MerkleMap.MerkleTreeImpl do
   end
 
   defp put_leaf({_, _} = found_leaf_node, rest_hash_k, leaf_node) do
-    discard_bits = @levels - bit_size(rest_hash_k)
+    discard_bits = @max_levels - bit_size(rest_hash_k)
 
     {_, {<<_::size(discard_bits), found_leaf_direction::size(1), _::bits>>, _}} = found_leaf_node
 
@@ -239,7 +239,7 @@ defmodule MerkleMap.MerkleTreeImpl do
   end
 
   defp hash(x) do
-    <<:erlang.phash2(x, @hash_limit)::size(@levels)>>
+    <<:erlang.phash2(x, @hash_limit)::size(@max_levels)>>
   end
 
   defp add_tuple_wrappers(keys) do
