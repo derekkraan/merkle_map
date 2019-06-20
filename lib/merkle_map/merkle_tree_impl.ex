@@ -30,11 +30,11 @@ defmodule MerkleMap.MerkleTreeImpl do
     put_leaf(tree, hash_k, {hash_k, %{k => v}})
   end
 
-  def put_leaf(@empty_branch, _rest_hash_k, leaf_node) do
+  defp put_leaf(@empty_branch, _rest_hash_k, leaf_node) do
     {@empty_hash, leaf_node}
   end
 
-  def put_leaf({_hash, branch_l, branch_r}, <<direction::size(1), rest_hash_k::bits>>, leaf_node) do
+  defp put_leaf({_hash, branch_l, branch_r}, <<direction::size(1), rest_hash_k::bits>>, leaf_node) do
     case direction do
       0 ->
         {@empty_hash, put_leaf(branch_l, rest_hash_k, leaf_node), branch_r}
@@ -44,11 +44,11 @@ defmodule MerkleMap.MerkleTreeImpl do
     end
   end
 
-  def put_leaf({_, {hash_k, found_map}}, _rest_hash_k, {hash_k, new_map}) do
+  defp put_leaf({_, {hash_k, found_map}}, _rest_hash_k, {hash_k, new_map}) do
     {@empty_hash, {hash_k, Map.merge(found_map, new_map)}}
   end
 
-  def put_leaf({_, _} = found_leaf_node, rest_hash_k, leaf_node) do
+  defp put_leaf({_, _} = found_leaf_node, rest_hash_k, leaf_node) do
     discard_bits = @levels - bit_size(rest_hash_k)
 
     {_, {<<_::size(discard_bits), found_leaf_direction::size(1), _::bits>>, _}} = found_leaf_node
