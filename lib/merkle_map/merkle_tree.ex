@@ -1,4 +1,6 @@
 defmodule MerkleMap.MerkleTree do
+  @moduledoc false
+
   @opaque t() :: %__MODULE__{}
   @type key :: term()
   @type value :: term()
