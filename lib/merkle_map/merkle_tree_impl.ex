@@ -109,10 +109,10 @@ defmodule MerkleMap.MerkleTreeImpl do
 
   defp assert_hashes_calculated(_), do: nil
 
-  def check_equal({hash, _}, {hash, _}), do: true
-  def check_equal({hash, _, _}, {hash, _, _}), do: true
-  def check_equal(@empty_branch, @empty_branch), do: true
-  def check_equal(_, _), do: false
+  defp check_equal({hash, _}, {hash, _}), do: true
+  defp check_equal({hash, _, _}, {hash, _, _}), do: true
+  defp check_equal(@empty_branch, @empty_branch), do: true
+  defp check_equal(_, _), do: false
 
   def diff_keys(t1, t2, depth \\ 0) when is_integer(depth) do
     assert_hashes_calculated(t1)
