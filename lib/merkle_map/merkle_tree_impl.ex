@@ -131,11 +131,11 @@ defmodule MerkleMap.MerkleTreeImpl do
   end
 
   defp do_diff_keys(_, {:partial, loc}, _levels) do
-    [{{:partial, loc}}]
+    [{:partial, loc}] |> add_tuple_wrappers()
   end
 
   defp do_diff_keys({:partial, loc}, _, _levels) do
-    [{{:partial, loc}}]
+    [{:partial, loc}] |> add_tuple_wrappers()
   end
 
   defp do_diff_keys({hash, _}, {hash, _}, _levels), do: []
