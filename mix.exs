@@ -25,7 +25,7 @@ defmodule MerkleMap.MixProject do
       description: "A faster Map, augmented with a MerkleTree",
       licenses: ["MIT"],
       maintainers: ["Derek Kraan"],
-      links: %{GitHub: "https://github.com/derekkraan/merkle_map.ex"}
+      links: %{GitHub: "https://github.com/derekkraan/merkle_map"}
     ]
   end
 
