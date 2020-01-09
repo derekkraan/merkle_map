@@ -1,6 +1,6 @@
 defimpl Enumerable, for: MerkleMap do
-  def count(mm), do: Enumerable.count(mm.map)
-  def member?(mm, elem), do: Enumerable.member?(mm.map, elem)
-  def reduce(mm, acc, fun), do: Enumerable.reduce(mm.map, acc, fun)
-  def slice(mm), do: Enumerable.slice(mm.map)
+  def count(%{map: map}), do: Enumerable.count(map)
+  def member?(%{map: map}, elem), do: Enumerable.member?(map, elem)
+  def reduce(%{map: map}, acc, fun), do: Enumerable.reduce(map, acc, fun)
+  def slice(%{map: map}), do: Enumerable.slice(map)
 end

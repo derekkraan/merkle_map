@@ -48,11 +48,10 @@ defmodule MerkleMapTest do
       mm2 = MerkleMap.new([], fn x -> {x, x} end) |> MerkleMap.update_hashes()
 
       assert {:ok, keys} = MerkleMap.diff_keys(mm1, mm2)
-      assert Enum.sort([1]) == Enum.sort(keys)
+      assert [1] == keys
 
       assert {:ok, diff_keys} = do_partial_diffs({mm1, mm2})
-
-      assert Enum.sort([1]) == Enum.sort(diff_keys)
+      assert [1] == diff_keys
     end
 
     test "can do diff in steps (save transmitting data)" do
@@ -64,7 +63,6 @@ defmodule MerkleMapTest do
       assert Enum.sort([1, 100_001]) == Enum.sort(keys)
 
       assert {:ok, diff_keys} = do_partial_diffs({mm1, mm2})
-
       assert Enum.sort([1, 100_001]) == Enum.sort(diff_keys)
     end
 

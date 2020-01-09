@@ -16,7 +16,7 @@ When mutating the merkle map, hashes are not automatically updated. Hashes must 
 ## Benchmarks
 
 ```
-##### With input 100_000 #####                                                              
+##### With input 100_000 #####
 Name                             ips        average  deviation         median         99th %
 merkle_map_not_equal_2       35.27 M     0.00003 ms±100268.45%           0 ms           0 ms
 merkle_map_equal_2           26.76 M     0.00004 ms ±98106.44%           0 ms           0 ms
@@ -35,7 +35,7 @@ This package can be installed by adding `merkle_map` to your list of dependencie
 ```elixir
 def deps do
   [
-    {:merkle_map, "~> 0.2.0"},
+    {:merkle_map, "~> 0.3.0"},
   ]
 end
 ```

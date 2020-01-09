@@ -18,6 +18,8 @@ defmodule MerkleMap.MerkleTreeImpl do
   @type branch :: leaf() | inner_node() | empty_branch()
   @type hash() :: empty_hash() | binary()
 
+  @compile {:inline, hash: 1}
+
   @max_levels 32
   @hash_limit round(:math.pow(2, @max_levels))
 
@@ -36,45 +38,33 @@ defmodule MerkleMap.MerkleTreeImpl do
 
   defp put_leaf({_hash, branch_l, branch_r}, <<direction::size(1), rest_hash_k::bits>>, leaf_node) do
     case direction do
-      0 ->
-        {@empty_hash, put_leaf(branch_l, rest_hash_k, leaf_node), branch_r}
-
-      1 ->
-        {@empty_hash, branch_l, put_leaf(branch_r, rest_hash_k, leaf_node)}
+      0 -> {@empty_hash, put_leaf(branch_l, rest_hash_k, leaf_node), branch_r}
+      1 -> {@empty_hash, branch_l, put_leaf(branch_r, rest_hash_k, leaf_node)}
     end
   end
 
   defp put_leaf({_, {hash_k, found_map}}, _rest_hash_k, {hash_k, new_map}) do
-    {@empty_hash, {hash_k, Map.merge(found_map, new_map)}}
+    {@empty_hash, {hash_k, :maps.merge(found_map, new_map)}}
   end
 
-  defp put_leaf({_, _} = found_leaf_node, rest_hash_k, leaf_node) do
+  defp put_leaf({_, {inner, _}} = found_leaf_node, rest_hash_k, leaf_node) do
     discard_bits = @max_levels - bit_size(rest_hash_k)
 
-    {_, {<<_::size(discard_bits), found_leaf_direction::size(1), _::bits>>, _}} = found_leaf_node
+    <<_::size(discard_bits), found_leaf_direction::size(1), _::bits>> = inner
 
     case found_leaf_direction do
-      0 ->
-        {@empty_hash, found_leaf_node, @empty_branch}
-
-      1 ->
-        {@empty_hash, @empty_branch, found_leaf_node}
+      0 -> {@empty_hash, found_leaf_node, @empty_branch}
+      1 -> {@empty_hash, @empty_branch, found_leaf_node}
     end
     |> put_leaf(rest_hash_k, leaf_node)
   end
 
-  def delete(tree, key) do
-    delete(tree, hash(key), key)
-  end
-
-  def delete(@empty_branch, _hash_k, _k) do
-    @empty_branch
-  end
+  def delete(tree, key), do: delete(tree, hash(key), key)
+  def delete(@empty_branch, _hash_k, _k), do: @empty_branch
 
   def delete({_, {hash_k, contents}}, _hash, k) do
-    new_contents = Map.delete(contents, k)
-
-    case new_contents do
+    :maps.remove(k, contents)
+    |> case do
       empty_map when map_size(empty_map) == 0 -> @empty_branch
       contents -> {@empty_hash, {hash_k, contents}}
     end
@@ -118,7 +108,7 @@ defmodule MerkleMap.MerkleTreeImpl do
     assert_hashes_calculated(t1)
     assert_hashes_calculated(t2)
 
-    List.flatten(do_diff_keys(t1, t2, depth)) |> remove_tuple_wrappers()
+    do_diff_keys(t1, t2, depth) |> remove_tuple_wrappers()
   end
 
   defp do_diff_keys(@empty_branch, tree, _levels), do: raw_keys(tree)
@@ -127,15 +117,15 @@ defmodule MerkleMap.MerkleTreeImpl do
   defp do_diff_keys({hash, _, _}, {hash, _, _}, _levels), do: []
 
   defp do_diff_keys({_, t1_l, t1_r}, {_, t2_l, t2_r}, levels) do
-    [do_diff_keys(t1_l, t2_l, levels + 1), do_diff_keys(t1_r, t2_r, levels + 1)]
+    do_diff_keys(t1_l, t2_l, levels + 1) ++ do_diff_keys(t1_r, t2_r, levels + 1)
   end
 
   defp do_diff_keys(_, {:partial, loc}, _levels) do
-    [{:partial, loc}] |> add_tuple_wrappers()
+    [{{:partial, loc}}]
   end
 
   defp do_diff_keys({:partial, loc}, _, _levels) do
-    [{:partial, loc}] |> add_tuple_wrappers()
+    [{{:partial, loc}}]
   end
 
   defp do_diff_keys({hash, _}, {hash, _}, _levels), do: []
@@ -146,14 +136,12 @@ defmodule MerkleMap.MerkleTreeImpl do
     raw_keys_1 = Map.keys(map1)
     raw_keys_2 = Map.keys(map2)
 
-    [
-      add_tuple_wrappers(
-        Enum.reject(raw_keys_1, fn k ->
-          Map.get(map1, k) == Map.get(map2, k)
-        end)
-      ),
-      add_tuple_wrappers(raw_keys_2 -- raw_keys_1)
-    ]
+    Enum.reduce(map1, [], fn {k, v}, acc ->
+      case map2 do
+        %{^k => ^v} -> acc
+        _ -> [{k} | acc]
+      end
+    end) ++ add_tuple_wrappers(raw_keys_2 -- raw_keys_1)
   end
 
   defp do_diff_keys({_, _, _} = inner_node, {_, _} = leaf, levels),
@@ -163,15 +151,12 @@ defmodule MerkleMap.MerkleTreeImpl do
     {_, {<<_discard::size(levels), direction::size(1), _rest::bits>>, _}} = leaf
 
     case direction do
-      0 ->
-        [do_diff_keys(b_l, leaf, levels + 1), raw_keys(b_r)]
-
-      1 ->
-        [raw_keys(b_l), do_diff_keys(b_r, leaf, levels + 1)]
+      0 -> do_diff_keys(b_l, leaf, levels + 1) ++ raw_keys(b_r)
+      1 -> raw_keys(b_l) ++ do_diff_keys(b_r, leaf, levels + 1)
     end
   end
 
-  def keys(tree), do: remove_tuple_wrappers(List.flatten(raw_keys(tree)))
+  def keys(tree), do: remove_tuple_wrappers(raw_keys(tree))
 
   def subtree(tree, loc, depth) when is_integer(depth) and depth > 0 and is_bitstring(loc) do
     assert_hashes_calculated(tree)
@@ -209,13 +194,14 @@ defmodule MerkleMap.MerkleTreeImpl do
   end
 
   defp raw_keys(@empty_branch), do: []
-  defp raw_keys({_, b_l, b_r}), do: [raw_keys(b_l), raw_keys(b_r)]
-  defp raw_keys({_, {_, contents}}), do: Map.keys(contents) |> add_tuple_wrappers()
-  defp raw_keys({:partial, loc}), do: [{:partial, loc}] |> add_tuple_wrappers
+  defp raw_keys({_, b_l, b_r}), do: raw_keys(b_l) ++ raw_keys(b_r)
+  defp raw_keys({_, {_, contents}}), do: :maps.keys(contents) |> add_tuple_wrappers()
+  defp raw_keys({:partial, loc}), do: [{{:partial, loc}}]
 
   def calculate_hashes(tree) do
-    {_, new_tree} = do_calculate_hashes(tree)
-    new_tree
+    tree
+    |> do_calculate_hashes
+    |> elem(1)
   end
 
   defp do_calculate_hashes(@empty_branch), do: {@empty_hash, @empty_branch}
@@ -243,17 +229,13 @@ defmodule MerkleMap.MerkleTreeImpl do
     <<:erlang.phash2(x, @hash_limit)::size(@max_levels)>>
   end
 
-  defp add_tuple_wrappers(keys, wrapped_keys \\ [])
-  defp add_tuple_wrappers([], wrapped), do: wrapped
-
-  defp add_tuple_wrappers([key | keys], wrapped) do
-    add_tuple_wrappers(keys, [{key} | wrapped])
+  defp add_tuple_wrappers([key | keys]) do
+    [{key} | add_tuple_wrappers(keys)]
   end
+  defp add_tuple_wrappers([]), do: []
 
-  defp remove_tuple_wrappers(keys, unwrapped_keys \\ [])
-  defp remove_tuple_wrappers([], unwrapped), do: unwrapped
-
-  defp remove_tuple_wrappers([{key} | keys], unwrapped) do
-    remove_tuple_wrappers(keys, [key | unwrapped])
+  defp remove_tuple_wrappers([{key} | keys]) do
+    [key | remove_tuple_wrappers(keys)]
   end
+  defp remove_tuple_wrappers([]), do: []
 end

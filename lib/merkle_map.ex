@@ -4,9 +4,12 @@ defmodule MerkleMap do
   """
 
   alias MerkleMap.MerkleTree
+  alias MerkleMap.MerkleTreeImpl
 
-  defstruct map: %{},
-            merkle_tree: MerkleTree.new()
+  defstruct [
+    map: %{},
+    merkle_tree: MerkleTreeImpl.new()
+  ]
 
   @opaque t() :: %__MODULE__{}
 
@@ -25,102 +28,98 @@ defmodule MerkleMap do
     end)
   end
 
-  def delete(%__MODULE__{} = mm, k) do
-    %{mm | map: Map.delete(mm.map, k), merkle_tree: MerkleTree.delete(mm.merkle_tree, k)}
+  def delete(%{map: map, merkle_tree: tree} = mm, k) do
+    %{mm | map: Map.delete(map, k), merkle_tree: MerkleTreeImpl.delete(tree, k)}
   end
 
-  def has_key?(%__MODULE__{map: m}, k) do
+  def has_key?(%{map: m}, k) do
     Map.has_key?(m, k)
   end
 
-  def equal?(mm1, mm2) do
-    MerkleTree.equal?(mm1.merkle_tree, mm2.merkle_tree)
+  def equal?(%{merkle_tree: tree1}, %{merkle_tree: tree2}) do
+    MerkleTreeImpl.equal?(tree1, tree2)
   end
 
-  def put(%__MODULE__{} = mm, k, v) do
-    %{mm | map: Map.put(mm.map, k, v), merkle_tree: MerkleTree.put(mm.merkle_tree, k, v)}
+  def put(%{map: map, merkle_tree: tree} = mm, k, v) do
+    %{mm | map: :maps.put(k, v, map), merkle_tree: MerkleTreeImpl.put(tree, k, v)}
   end
 
   def values(%__MODULE__{} = mm) do
     Map.values(mm.map)
   end
 
-  def fetch(mm, key) do
-    Map.fetch(mm.map, key)
+  def fetch(%{map: map}, key) do
+    Map.fetch(map, key)
   end
 
-  def fetch!(mm, key) do
-    Map.fetch!(mm.map, key)
+  def fetch!(%{map: map}, key) do
+    Map.fetch!(map, key)
   end
 
-  def to_list(mm) do
-    Map.to_list(mm.map)
+  def to_list(%{map: map}) do
+    Map.to_list(map)
   end
 
   def from_struct(struct) do
     Map.from_struct(struct) |> new()
   end
 
-  def get(mm, key, default \\ nil) do
-    Map.get(mm.map, key, default)
+  def get(%{map: map}, key, default \\ nil) do
+    :maps.get(key, map, default)
   end
 
-  def keys(mm) do
-    Map.keys(mm.map)
+  def keys(%{map: map}) do
+    :maps.keys(map)
   end
 
-  def drop(%__MODULE__{} = mm, keys) do
-    mm = %{mm | map: Map.drop(mm.map, keys)}
-
-    new_mm =
-      Enum.reduce(keys, mm.merkle_tree, fn key, mt ->
-        MerkleTree.delete(mt, key)
+  def drop(%{map: map, merkle_tree: tree} = mm, keys) do
+    new_tree =
+      Enum.reduce(keys, tree, fn key, mt ->
+        MerkleTreeImpl.delete(mt, key)
       end)
 
-    Map.put(mm, :merkle_tree, new_mm)
+    %__MODULE__{mm | map: Map.drop(map, keys), merkle_tree: new_tree}
   end
 
-  def take(%__MODULE__{} = mm, keys) do
-    Map.take(mm.map, keys) |> new()
+  def take(%{map: map}, keys) do
+    Map.take(map, keys) |> new()
   end
 
-  def update_hashes(mm) do
-    %__MODULE__{mm | merkle_tree: MerkleTree.update_hashes(mm.merkle_tree)}
+  def update_hashes(%{merkle_tree: tree} = mm) do
+    %__MODULE__{mm | merkle_tree: MerkleTreeImpl.calculate_hashes(tree)}
   end
 
-  def diff_keys(mm1, mm2)
-
-  def diff_keys(%__MODULE__{} = mm1, %__MODULE__{} = mm2) do
-    {:ok, MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)}
+  # Is wrapping into `{:ok, _}` really necessary?
+  # If yes, why is there no `{:error, _} | :error` case?
+  def diff_keys(%{merkle_tree: tree1}, %{merkle_tree: tree2}) do
+    {:ok, MerkleTreeImpl.diff_keys(tree1, tree2, 0)}
   end
 
-  def prepare_partial_diff(mm, depth) do
-    {:continue,
-     %MerkleTree.Diff{trees: [{<<>>, MerkleTree.subtree(mm.merkle_tree, <<>>, depth)}]}}
+  def prepare_partial_diff(%{merkle_tree: tree}, depth) do
+    {
+      :continue,
+      %MerkleTree.Diff{trees: [{<<>>, MerkleTreeImpl.subtree(tree, <<>>, depth)}]}
+    }
   end
 
-  def continue_partial_diff(mm1, %__MODULE__.MerkleTree.Diff{} = partial, depth) do
+  def continue_partial_diff(mm1, %MerkleTree.Diff{} = partial, depth) do
     continue_partial_diff(partial, mm1, depth)
   end
 
-  def continue_partial_diff(%__MODULE__.MerkleTree.Diff{} = partial, %__MODULE__{} = mm, depth)
-      when is_integer(depth) and depth > 0 do
+  def continue_partial_diff(
+    %{trees: trees, keys: partial_keys},
+    %{merkle_tree: merkle_tree},
+    depth) when is_integer(depth) and depth > 0
+  do
     diff_keys =
-      Enum.reduce(partial.trees, [], fn {loc, tree}, acc_keys ->
-        sub_tree = MerkleTree.subtree(mm.merkle_tree, loc, depth)
-
-        diff_keys = MerkleTree.diff_keys(sub_tree, tree, bit_size(loc))
-
-        Enum.map(diff_keys, fn
-          {:partial, partial_loc} -> {:partial, <<loc::bitstring, partial_loc::bitstring>>}
-          other -> other
-        end)
-
+      Enum.reduce(trees, [], fn {loc, tree}, acc_keys ->
+        sub_tree = MerkleTreeImpl.subtree(merkle_tree, loc, depth)
+        diff_keys = MerkleTreeImpl.diff_keys(sub_tree, tree, bit_size(loc))
         [diff_keys | acc_keys]
       end)
 
     {partials, keys} =
-      List.flatten(diff_keys)
+      List.flatten(diff_keys) # Why don't we use `diff_keys ++ acc_keys` on the line above?
       |> Enum.split_with(fn
         {:partial, _loc} -> true
         _ -> false
@@ -128,107 +127,107 @@ defmodule MerkleMap do
 
     trees =
       Enum.map(partials, fn {:partial, loc} ->
-        sub_tree = MerkleTree.subtree(mm.merkle_tree, loc, depth)
+        sub_tree = MerkleTreeImpl.subtree(merkle_tree, loc, depth)
         {loc, sub_tree}
       end)
 
     case trees do
-      [] -> {:ok, partial.keys ++ keys}
-      trees -> {:continue, %__MODULE__.MerkleTree.Diff{keys: partial.keys ++ keys, trees: trees}}
+      [] -> {:ok, partial_keys ++ keys}
+      trees -> {:continue, %MerkleTree.Diff{keys: partial_keys ++ keys, trees: trees}}
     end
   end
 
-  def truncate_diff(%__MODULE__.MerkleTree.Diff{} = diff, amount) do
-    keys = Enum.take(diff.keys, amount)
-    trees = Enum.take(diff.trees, amount - length(keys))
+  def truncate_diff(%MerkleTree.Diff{keys: keys, trees: trees} = diff, amount) do
+    keys = Enum.take(keys, amount)
+    trees = Enum.take(trees, amount - length(keys))
     %{diff | keys: keys, trees: trees}
   end
 
-  def merge(mm1, mm2) do
+  def merge(mm1, %{map: map2} = mm2) do
     {:ok, diff_keys} = diff_keys(mm1, mm2)
 
     Enum.reduce(diff_keys, mm1, fn key, mm ->
-      if Map.has_key?(mm2.map, key) do
-        put(mm, key, get(mm2, key))
-      else
-        mm
+      case map2 do
+        %{^key => val} -> put(mm, key, val)
+        _ -> mm
       end
     end)
   end
 
-  def merge(mm1, mm2, update_fun) do
+  def merge(%{map: map1} = mm1, %{map: map2} = mm2, update_fun) do
     {:ok, diff_keys} = diff_keys(mm1, mm2)
 
     Enum.reduce(diff_keys, mm1, fn key, mm ->
-      cond do
-        has_key?(mm, key) && has_key?(mm2, key) ->
-          val = update_fun.(key, get(mm, key), get(mm2, key))
+      case {map1, map2} do
+        {%{^key => val1}, %{^key => val2}} ->
+          val = update_fun.(key, val1, val2)
           put(mm, key, val)
 
-        has_key?(mm2, key) ->
-          put(mm, key, get(mm2, key))
+        {_, %{^key => val}} ->
+          put(mm, key, val)
 
         # then the key is only in mm
-        true ->
+        _ ->
           mm
       end
     end)
   end
 
-  def pop(mm, key) do
-    {val, map} = Map.pop(mm.map, key)
-    {val, %{mm | map: map, merkle_tree: MerkleTree.delete(mm.merkle_tree, key)}}
+  def pop(%{map: map, merkle_tree: tree}, key) do
+    {val, map} = Map.pop(map, key)
+    {val, %__MODULE__{map: map, merkle_tree: MerkleTreeImpl.delete(tree, key)}}
   end
 
-  def pop_lazy(mm, key, fun) do
-    {val, map} = Map.pop_lazy(mm.map, key, fun)
-    {val, %{mm | map: map, merkle_tree: MerkleTree.delete(mm.merkle_tree, key)}}
+  def pop_lazy(%{map: map, merkle_tree: tree}, key, fun) do
+    {val, map} = Map.pop_lazy(map, key, fun)
+    {val, %__MODULE__{map: map, merkle_tree: MerkleTreeImpl.delete(tree, key)}}
   end
 
-  def put_new(mm, key, value) do
-    cond do
-      has_key?(mm, key) -> mm
-      true -> put(mm, key, value)
+  def put_new(%{map: map} = mm, key, value) do
+    case map do
+      %{^key => _} -> mm
+      _ -> put(mm, key, value)
     end
   end
 
-  def put_new_lazy(mm, key, fun) do
-    cond do
-      has_key?(mm, key) -> mm
-      true -> put(mm, key, fun.())
+  def put_new_lazy(%{map: map} = mm, key, fun) do
+    case map do
+      %{^key => _} -> mm
+      _ -> put(mm, key, fun.())
     end
   end
 
-  def get_lazy(mm, key, fun) do
-    cond do
-      has_key?(mm, key) -> get(mm, key)
-      true -> fun.()
+  def get_lazy(%{map: map}, key, fun) do
+    case map do
+      %{^key => val} -> val
+      _ -> fun.()
     end
   end
 
+  #TODO can be optimized to use one `Map.split`
   def split(mm1, keys) do
     {take(mm1, keys), drop(mm1, keys)}
   end
 
-  def update(mm, key, initial, fun) do
-    cond do
-      has_key?(mm, key) -> put(mm, key, fun.(get(mm, key)))
-      true -> put(mm, key, initial)
+  def update(%{map: map} = mm, key, initial, fun) do
+    case map do
+      %{^key => val} -> put(mm, key, fun.(val))
+      _ -> put(mm, key, initial)
     end
   end
 
-  def update!(mm, key, fun) do
-    map = Map.update!(mm.map, key, fun)
-    %{mm | map: map, merkle_tree: MerkleTree.put(mm.merkle_tree, key, Map.get(map, key))}
+  def update!(%{map: map, merkle_tree: tree}, key, fun) do
+    map = %{^key => value} = Map.update!(map, key, fun)
+    %__MODULE__{map: map, merkle_tree: MerkleTreeImpl.put(tree, key, value)}
   end
 
-  def replace!(mm, key, value) do
-    map = Map.replace!(mm.map, key, value)
-    %{mm | map: map, merkle_tree: MerkleTree.put(mm.merkle_tree, key, Map.get(map, key))}
+  def replace!(%{map: map, merkle_tree: tree}, key, value) do
+    map = Map.replace!(map, key, value)
+    %__MODULE__{map: map, merkle_tree: MerkleTreeImpl.put(tree, key, value)}
   end
 
-  def get_and_update(mm, key, fun) do
-    {val, map} = Map.get_and_update(mm.map, key, fun)
+  def get_and_update(%{map: map} = mm, key, fun) do
+    {val, map} = Map.get_and_update(map, key, fun)
     new_mm = %{mm | map: map}
     new_mm = put(new_mm, key, get(new_mm, key))
     {val, new_mm}

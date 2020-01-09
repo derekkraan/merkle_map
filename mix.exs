@@ -4,7 +4,7 @@ defmodule MerkleMap.MixProject do
   def project do
     [
       app: :merkle_map,
-      version: "0.2.0",
+      version: "0.3.0",
       elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
       package: package(),
@@ -14,9 +14,7 @@ defmodule MerkleMap.MixProject do
 
   # Run "mix help compile.app" to learn about applications.
   def application do
-    [
-      extra_applications: [:logger]
-    ]
+    []
   end
 
   defp package do
