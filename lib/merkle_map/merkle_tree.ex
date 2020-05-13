@@ -8,6 +8,7 @@ defmodule MerkleMap.MerkleTree do
   defstruct [:tree]
 
   alias MerkleMap.MerkleTreeImpl
+  alias MerkleMap.MerkleTree.Diff
 
   @spec new(Enumerable.t()) :: t()
   def new(enum) do
@@ -58,5 +59,40 @@ defmodule MerkleMap.MerkleTree do
 
   def update_hashes(%__MODULE__{tree: tree}) do
     %__MODULE__{tree: MerkleTreeImpl.calculate_hashes(tree)}
+  end
+
+  def prepare_partial_diff(merkle_tree, depth) do
+    {:continue, %Diff{trees: [{<<>>, subtree(merkle_tree, <<>>, depth)}]}}
+  end
+
+  def continue_partial_diff(merkle_tree, %Diff{} = partial, depth)
+      when is_integer(depth) and depth > 0 do
+    {partials, keys} =
+      partial.trees
+      |> Enum.flat_map(fn {loc, tree} ->
+        merkle_tree
+        |> subtree(loc, depth)
+        |> diff_keys(tree, bit_size(loc))
+      end)
+      |> Enum.split_with(fn
+        {:partial, _loc} -> true
+        _ -> false
+      end)
+
+    trees =
+      Enum.map(partials, fn {:partial, loc} ->
+        {loc, subtree(merkle_tree, loc, depth)}
+      end)
+
+    case trees do
+      [] -> {:ok, partial.keys ++ keys}
+      trees -> {:continue, %Diff{keys: partial.keys ++ keys, trees: trees}}
+    end
+  end
+
+  def truncate_diff(%Diff{} = diff, amount) do
+    keys = Enum.take(diff.keys, amount)
+    trees = Enum.take(diff.trees, amount - length(keys))
+    %{diff | keys: keys, trees: trees}
   end
 end

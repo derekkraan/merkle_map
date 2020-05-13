@@ -4,6 +4,7 @@ defmodule MerkleMap do
   """
 
   alias MerkleMap.MerkleTree
+  alias MerkleMap.MerkleTree.Diff
 
   defstruct map: %{},
             merkle_tree: MerkleTree.new()
@@ -94,55 +95,19 @@ defmodule MerkleMap do
     {:ok, MerkleTree.diff_keys(mm1.merkle_tree, mm2.merkle_tree)}
   end
 
-  def prepare_partial_diff(mm, depth) do
-    {:continue,
-     %MerkleTree.Diff{trees: [{<<>>, MerkleTree.subtree(mm.merkle_tree, <<>>, depth)}]}}
+  def prepare_partial_diff(%__MODULE__{} = mm, depth) do
+    MerkleTree.prepare_partial_diff(mm.merkle_tree, depth)
   end
 
-  def continue_partial_diff(mm1, %__MODULE__.MerkleTree.Diff{} = partial, depth) do
-    continue_partial_diff(partial, mm1, depth)
+  def continue_partial_diff(%__MODULE__{} = mm, %Diff{} = partial, depth) do
+    MerkleTree.continue_partial_diff(mm.merkle_tree, partial, depth)
   end
 
-  def continue_partial_diff(%__MODULE__.MerkleTree.Diff{} = partial, %__MODULE__{} = mm, depth)
-      when is_integer(depth) and depth > 0 do
-    diff_keys =
-      Enum.reduce(partial.trees, [], fn {loc, tree}, acc_keys ->
-        sub_tree = MerkleTree.subtree(mm.merkle_tree, loc, depth)
-
-        diff_keys = MerkleTree.diff_keys(sub_tree, tree, bit_size(loc))
-
-        Enum.map(diff_keys, fn
-          {:partial, partial_loc} -> {:partial, <<loc::bitstring, partial_loc::bitstring>>}
-          other -> other
-        end)
-
-        [diff_keys | acc_keys]
-      end)
-
-    {partials, keys} =
-      List.flatten(diff_keys)
-      |> Enum.split_with(fn
-        {:partial, _loc} -> true
-        _ -> false
-      end)
-
-    trees =
-      Enum.map(partials, fn {:partial, loc} ->
-        sub_tree = MerkleTree.subtree(mm.merkle_tree, loc, depth)
-        {loc, sub_tree}
-      end)
-
-    case trees do
-      [] -> {:ok, partial.keys ++ keys}
-      trees -> {:continue, %__MODULE__.MerkleTree.Diff{keys: partial.keys ++ keys, trees: trees}}
-    end
+  def continue_partial_diff(%Diff{} = partial, %__MODULE__{} = mm, depth) do
+    MerkleTree.continue_partial_diff(mm.merkle_tree, partial, depth)
   end
 
-  def truncate_diff(%__MODULE__.MerkleTree.Diff{} = diff, amount) do
-    keys = Enum.take(diff.keys, amount)
-    trees = Enum.take(diff.trees, amount - length(keys))
-    %{diff | keys: keys, trees: trees}
-  end
+  defdelegate truncate_diff(diff, amount), to: Diff
 
   def merge(mm1, mm2) do
     {:ok, diff_keys} = diff_keys(mm1, mm2)
