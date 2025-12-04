@@ -85,8 +85,8 @@ defmodule MerkleMap do
     Map.take(mm.map, keys) |> new()
   end
 
-  def update_hashes(mm) do
-    %__MODULE__{mm | merkle_tree: MerkleTree.update_hashes(mm.merkle_tree)}
+  def update_hashes(%__MODULE__{} = mm) do
+    %{mm | merkle_tree: MerkleTree.update_hashes(mm.merkle_tree)}
   end
 
   def diff_keys(mm1, mm2)
@@ -151,23 +151,26 @@ defmodule MerkleMap do
   end
 
   def put_new(mm, key, value) do
-    cond do
-      has_key?(mm, key) -> mm
-      true -> put(mm, key, value)
+    if has_key?(mm, key) do
+      mm
+    else
+      put(mm, key, value)
     end
   end
 
   def put_new_lazy(mm, key, fun) do
-    cond do
-      has_key?(mm, key) -> mm
-      true -> put(mm, key, fun.())
+    if has_key?(mm, key) do
+      mm
+    else
+      put(mm, key, fun.())
     end
   end
 
   def get_lazy(mm, key, fun) do
-    cond do
-      has_key?(mm, key) -> get(mm, key)
-      true -> fun.()
+    if has_key?(mm, key) do
+      get(mm, key)
+    else
+      fun.()
     end
   end
 
@@ -176,9 +179,10 @@ defmodule MerkleMap do
   end
 
   def update(mm, key, initial, fun) do
-    cond do
-      has_key?(mm, key) -> put(mm, key, fun.(get(mm, key)))
-      true -> put(mm, key, initial)
+    if has_key?(mm, key) do
+      put(mm, key, fun.(get(mm, key)))
+    else
+      put(mm, key, initial)
     end
   end
 

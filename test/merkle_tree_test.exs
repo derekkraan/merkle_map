@@ -60,7 +60,7 @@ defmodule MerkleTreeTest do
 
   test "subtree computes a sub tree" do
     subtree =
-      Map.new(1..10000, fn x -> {x, x} end)
+      Map.new(1..10_000, fn x -> {x, x} end)
       |> MerkleTree.new()
       |> MerkleTree.update_hashes()
       |> MerkleTree.subtree("", 4)
@@ -69,8 +69,10 @@ defmodule MerkleTreeTest do
   end
 
   property "diff_keys of itself is always empty" do
-    check all key <- term(),
-              value <- term() do
+    check all(
+            key <- term(),
+            value <- term()
+          ) do
       map = %{key => value}
       tree = MerkleTree.new(map) |> MerkleTree.update_hashes()
       assert [] = MerkleTree.diff_keys(tree, tree)
@@ -78,11 +80,14 @@ defmodule MerkleTreeTest do
   end
 
   property "diff_keys identifies missing key" do
-    check all key <- term(),
-              value <- term() do
+    check all(
+            key <- term(),
+            value <- term()
+          ) do
       map = %{key => value}
       tree = MerkleTree.new(map) |> MerkleTree.update_hashes()
-      assert [key] = MerkleTree.diff_keys(MerkleTree.new() |> MerkleTree.update_hashes(), tree)
+      assert diff_keys = MerkleTree.diff_keys(MerkleTree.new() |> MerkleTree.update_hashes(), tree)
+      assert Enum.count(diff_keys) == 1
     end
   end
 
@@ -90,10 +95,13 @@ defmodule MerkleTreeTest do
     tree =
       Map.new(1..1000, fn x -> {x, x * x} end) |> MerkleTree.new() |> MerkleTree.update_hashes()
 
-    check all key <- term(),
-              value <- term() do
+    check all(
+            key <- term(),
+            value <- term()
+          ) do
       new_tree = MerkleTree.put(tree, key, value) |> MerkleTree.update_hashes()
-      assert [key] = MerkleTree.diff_keys(new_tree, tree)
+      assert diff_keys = MerkleTree.diff_keys(new_tree, tree)
+      assert Enum.count(diff_keys) == 1
     end
   end
 end
