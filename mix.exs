@@ -32,9 +32,11 @@ defmodule MerkleMap.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:stream_data, "~> 0.5", only: :test},
-      {:benchee, "> 0.0.0", only: :dev},
-      {:ex_doc, "> 0.0.0", only: :dev}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:stream_data, "~> 1.2", only: :test},
+      {:benchee, "~> 1.0", only: :dev},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false, warn_if_outdated: true}
     ]
   end
 end

@@ -32,13 +32,13 @@ defmodule MerkleMap.MerkleTree do
     %__MODULE__{tree: MerkleTreeImpl.delete(tree, key)}
   end
 
-  @spec diff_keys(t(), t(), depth :: integer()) :: {t(), t(), [key()]}
+  @spec diff_keys(t(), t(), depth :: integer()) :: [key()]
   def diff_keys(%__MODULE__{tree: tree}, %__MODULE__{tree: tree2}, depth \\ 0)
       when is_integer(depth) and depth >= 0 do
     MerkleTreeImpl.diff_keys(tree, tree2, depth)
   end
 
-  @spec diff_keys(t(), t()) :: {t(), t(), boolean()}
+  @spec equal?(t(), t()) :: boolean()
   def equal?(%__MODULE__{tree: tree}, %__MODULE__{tree: tree2}) do
     MerkleTreeImpl.equal?(tree, tree2)
   end
