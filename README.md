@@ -1,5 +1,7 @@
 # MerkleMap
 
+[![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fgithub.com%2Fderekkraan%2Fmerkle_map%2Fblob%2Fmaster%2Fmerkle_map.livemd)
+
 MerkleMap is an augmented "plain" Map. Certain operations are faster, and others are slower. MerkleMap also requires more memory, so be aware of this.
 
 MerkleMap is almost a drop-in replacement for Map. It has the same functions, with the following additions:
@@ -35,9 +37,13 @@ This package can be installed by adding `merkle_map` to your list of dependencie
 ```elixir
 def deps do
   [
-    {:merkle_map, "~> 0.2.0"},
+    {:merkle_map, "~> 0.2"},
   ]
 end
 ```
 
 The docs can be found at [https://hexdocs.pm/merkle_map](https://hexdocs.pm/merkle_map).
+
+## Livebook
+
+If you use [Livebook](https://livebook.dev/), there is also a [`MerkleMap` usage demo!](./merkle_map.livemd)
