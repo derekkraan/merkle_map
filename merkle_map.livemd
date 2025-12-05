@@ -1,0 +1,137 @@
+# Optimizing Network Sync with MerkleMap Partial Diffs
+
+```elixir
+Mix.install([
+  {:merkle_map, github: "derekkraan/merkle_map", ref: "master"}
+])
+```
+
+## Introduction
+
+When synchronizing large maps between two nodes (e.g., server and client), sending the entire map or even the entire set of differences can be expensive.
+
+`MerkleMap` supports **truncated partial diffs**, enabling a mechanism to:
+
+1. Compare Merkle trees incrementally.
+2. Limit the size of differences carried in each step.
+3. Resume comparison.
+
+This demo shows how to implement a **convergence loop** that synchronizes two maps in batches until they are identical.
+
+## Setup
+
+We create a large dataset for the "Server" (source of truth) and a divergent "Client" (replica).
+
+```elixir
+IO.puts("Creating source map (server)...")
+mm1 = MerkleMap.new(1..100_000, fn i -> {i, "val-#{i}"} end) |> MerkleMap.update_hashes()
+
+IO.puts("Creating replica map (client)...")
+mm2_base =
+  mm1
+  # Modified value
+  |> MerkleMap.put(1, "changed-1")
+  # Missing key
+  |> MerkleMap.delete(50_000)
+  # Extra key
+  |> MerkleMap.put(100_001, "new-val")
+
+# Add a chunk of divergent data to force multiple sync rounds
+mm2 =
+  2000..2500
+  |> Enum.reduce(mm2_base, fn i, acc ->
+    MerkleMap.put(acc, i, "divergent-#{i}")
+  end)
+  |> MerkleMap.update_hashes()
+
+IO.puts("Setup complete.")
+```
+
+## Partial Diff Module
+
+This module handles the low-level "ping-pong" of the diff protocol. It traverses the tree and returns a list of keys found in that traversal.
+
+It uses `MerkleMap.truncate_diff/2` to limit the size of the diff object being passed around. Because of this truncation, a single traversal might not yield *all* differences if they exceed the limit. This necessitates the convergence loop defined later.
+
+```elixir
+defmodule NetworkSync do
+  def get_diff_batch(server_mm, client_mm, max_diffs) do
+    # Start the diff process at depth 8 (a reasonable default for large trees)
+    {:continue, partial_diff} = MerkleMap.prepare_partial_diff(server_mm, 8)
+
+    loop(partial_diff, {client_mm, server_mm}, max_diffs)
+  end
+
+  defp loop(partial_diff, {local_mm, remote_mm}, max_diffs) do
+    # Process a step of the diff
+    case MerkleMap.continue_partial_diff(partial_diff, local_mm, 8) do
+      {:continue, next_partial_diff} ->
+        # Truncate to ensure we don't accumulate too many diffs in the state object
+        # This simulates keeping the network payload small.
+        truncated_diff = MerkleMap.truncate_diff(next_partial_diff, max_diffs)
+
+        # Swap roles (ping-pong) and continue
+        loop(truncated_diff, {remote_mm, local_mm}, max_diffs)
+
+      {:ok, keys} ->
+        # Traversal finished for this round
+        {:ok, keys}
+    end
+  end
+end
+```
+
+## Convergence Loop
+
+Here we implement the loop that applies changes and repeats until the maps are equal.
+
+1. Check equality.
+2. If different, fetch a batch of diffs.
+3. Apply diffs (simulate fetching correct values from source).
+4. Repeat.
+
+```elixir
+defmodule Converger do
+  def converge(source, replica, batch_size, round \\ 1, diff_size \\ 0) do
+    if MerkleMap.equal?(source, replica) do
+      IO.puts("Convergence complete after #{round - 1} rounds (#{diff_size} diffs).")
+      replica
+    else
+      IO.puts("Starting converge round #{round}")
+
+      # 1. Get a batch of differences (limited by batch_size)
+      {:ok, diff_keys} = NetworkSync.get_diff_batch(source, replica, batch_size)
+
+      # 2. Resolve differences (fetch values from source)
+      # In a real application, 'source' would send these values to 'replica' over the network.
+      new_replica =
+        Enum.reduce(diff_keys, replica, fn key, mm ->
+          if MerkleMap.has_key?(source, key) do
+            # Update/add
+            MerkleMap.put(mm, key, MerkleMap.get(source, key))
+          else
+            # Delete (key exists in replica but not in source)
+            MerkleMap.delete(mm, key)
+          end
+        end)
+        |> MerkleMap.update_hashes()
+
+      # 3. Recurse until converged
+      converge(source, new_replica, batch_size, round + 1, diff_size + length(diff_keys))
+    end
+  end
+end
+```
+
+## Execute Sync
+
+```elixir
+final_replica = Converger.converge(mm1, mm2, 100)
+
+IO.puts("Verifying final equality...")
+if MerkleMap.equal?(mm1, final_replica) do
+  IO.puts("SUCCESS: Maps are identical.")
+else
+  IO.puts("FAILURE: Maps are still different.")
+end
+```

@@ -4,14 +4,14 @@ MerkleMap is an augmented "plain" Map. Certain operations are faster, and others
 
 MerkleMap is almost a drop-in replacement for Map. It has the same functions, with the following additions:
 
-- `MerkleMap.diff_keys/2` returns the keys that differ between two merkle maps.
+- `MerkleMap.diff_keys/2` returns the keys that differ between two Merkle maps.
 - `MerkleMap.prepare_partial_diff/2` prepares a partial diff.
 - `MerkleMap.continue_partial_diff/3` continues the partial diff.
-- `MerkleMap.update_hashes/1` updates the hashes in the merkle map.
+- `MerkleMap.update_hashes/1` updates the hashes in the Merkle map.
 
-When mutating the merkle map, hashes are not automatically updated. Hashes must be updated manually. This is both for performance, but also to keep function signatures from getting too silly. Functions that accept two merkle maps (eg, `merge/2`) will require that you have run `update_hashes/1` on both input maps, or an ArgumentError will be raised.
+When mutating the Merkle map, hashes are not automatically updated. Hashes must be updated manually. This is both for performance, but also to keep function signatures from getting too silly. Functions that accept two Merkle maps (eg, `merge/2`) will require that you have run `update_hashes/1` on both input maps, or an ArgumentError will be raised.
 
-`prepare_partial_diff/2` and `continue_partial_diff/3` are built for use when comparing two maps that are not present in the same process or perhaps not even on the same node. By sending and comparing only a part of the merkle tree in each step, it is possible to send much less traffic back and forth. This is especially a concern for large maps.
+`prepare_partial_diff/2` and `continue_partial_diff/3` are built for use when comparing two maps that are not present in the same process or perhaps not even on the same node. By sending and comparing only a part of the [Merkle tree](https://en.wikipedia.org/wiki/Merkle_tree) in each step, it is possible to send much less traffic back and forth. This is especially a concern for large maps.
 
 ## Benchmarks
 

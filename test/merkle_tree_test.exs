@@ -86,7 +86,10 @@ defmodule MerkleTreeTest do
           ) do
       map = %{key => value}
       tree = MerkleTree.new(map) |> MerkleTree.update_hashes()
-      assert diff_keys = MerkleTree.diff_keys(MerkleTree.new() |> MerkleTree.update_hashes(), tree)
+
+      assert diff_keys =
+               MerkleTree.diff_keys(MerkleTree.new() |> MerkleTree.update_hashes(), tree)
+
       assert Enum.count(diff_keys) == 1
     end
   end
